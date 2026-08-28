@@ -13,10 +13,10 @@ The deployed Lambda/MCP contract was validated directly on 2026-08-28 while the
 API remained disabled. All three bounded synthetic calls succeeded and the
 function was returned to reserved concurrency zero immediately afterward.
 
-The production-shaped OAuth profile is now selected and prepared locally:
+The production-shaped OAuth foundation was deployed and verified on 2026-08-28:
 Cognito Lite with a public pre-registered MCP Inspector client, PKCE, audience
-binding, five-minute access tokens and mandatory TOTP. No Cognito resource or
-user has been created.
+binding, five-minute access tokens and mandatory TOTP. The pool has zero users,
+and it is not connected to the still-closed API route.
 
 ## Deployment posture
 
@@ -33,6 +33,8 @@ user has been created.
   initialization, two warm invocations at 133 ms and 89 ms, and 108 MB maximum
   memory used out of 128 MB.
 - PROD and continuous deployment do not exist.
+- The separate Cognito auth stack has four complete resources, deletion
+  protection, administrator-only user creation and zero users.
 
 ## Account cost posture
 
@@ -43,7 +45,6 @@ its primary cost controls.
 
 ## Next decision
 
-Review the separate Cognito template, IAM-free user-pool resources, cost posture
-and retained rollback behavior. Deploying it and creating one administrator-only
-user require explicit authorization. API Gateway remains IAM-protected and
-disabled until a later gate.
+Review the separately gated creation of one administrator-only validation user.
+API Gateway remains IAM-protected and disabled; replacing IAM with the JWT
+authorizer and opening a bounded validation window are later independent gates.

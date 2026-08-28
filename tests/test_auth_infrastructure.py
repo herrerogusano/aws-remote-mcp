@@ -14,10 +14,12 @@ def test_auth_template_is_dev_only_and_not_implicitly_deployable() -> None:
 
     assert "AllowedValues:\n      - dev" in template
     assert "CognitoDomainPrefix:" in template
+    assert "^(?!.*(?:aws|amazon|cognito))" in template
     assert "McpResourceUri:" in template
     assert "Default: dev" in template
     assert "Default: https://" not in template
     assert "Default: aws-remote-mcp" not in template
+    assert "CognitoDomainPrefix=aws-remote-mcp" not in template
 
 
 def test_user_pool_prevents_unbounded_or_billable_sign_up_paths() -> None:
@@ -48,8 +50,8 @@ def test_inspector_client_is_public_pkce_only_and_short_lived() -> None:
     assert "http://127.0.0.1:6276/oauth/callback" in template
     assert "AccessTokenValidity: 5" in template
     assert "RefreshTokenValidity: 1" in template
-    assert "Feature: ENABLED" in template
-    assert "RetryGracePeriodSeconds: 0" in template
+    assert "EnableTokenRevocation: true" in template
+    assert "RefreshTokenRotation" not in template
 
 
 def test_auth_template_has_only_the_expected_resources() -> None:

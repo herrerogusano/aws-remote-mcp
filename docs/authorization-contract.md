@@ -68,14 +68,15 @@ Inspector supports this configuration. If another target client requires CIMD
 or DCR, compare authorization-server alternatives instead of inventing a
 registration protocol or weakening authorization.
 
-The configuration contract is prepared in `auth-template.yaml`; no authorization
-resource or user has been created yet.
+The configuration contract in `auth-template.yaml` is deployed as the separate
+`aws-remote-mcp-auth-dev` stack. It contains zero users and is not yet connected
+to the API route.
 
 ## Deployment boundary
 
-This contract creates no authorization server and no AWS resource. The normal
-local runner remains loopback-only and unprotected for development. The
-separately constructed protected app is the executable contract for deployment.
+The normal local runner remains loopback-only and unprotected for development.
+The Cognito foundation exists, but user creation, API Gateway JWT integration
+and any remote opening remain independent deployment gates.
 
 ## Sources
 

@@ -11,7 +11,10 @@ Parameters:
   CognitoDomainPrefix:
     Type: String
     Description: Globally unique lowercase prefix for the Cognito-hosted domain.
-    AllowedPattern: "^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    AllowedPattern: "^(?!.*(?:aws|amazon|cognito))[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    ConstraintDescription: >-
+      Use 1-63 lowercase letters, numbers or internal hyphens without the
+      reserved terms aws, amazon or cognito.
   McpResourceUri:
     Type: String
     Description: Exact canonical HTTPS URI of the deployed MCP endpoint.
@@ -88,9 +91,6 @@ Resources:
         RefreshToken: days
       AuthSessionValidity: 3
       EnableTokenRevocation: true
-      RefreshTokenRotation:
-        Feature: ENABLED
-        RetryGracePeriodSeconds: 0
 
   AuthDomain:
     Type: AWS::Cognito::UserPoolDomain

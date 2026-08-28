@@ -39,8 +39,9 @@ Cognito issuer/audience and this scope so an ID token cannot satisfy the route.
 - No SMS, email OTP, custom domain, WAF, Lambda trigger, M2M client, threat
   protection or Plus tier is configured.
 - The public client has no secret. It uses one exact loopback callback and PKCE.
-- Access and ID tokens expire after five minutes. The one-day refresh token
-  rotates with no grace reuse period and supports revocation.
+- Access and ID tokens expire after five minutes. The refresh token expires
+  after one day and supports revocation. Rotation is unavailable in the Lite
+  tier and is deliberately omitted to avoid a paid tier.
 - TOTP MFA is mandatory and doesn't create per-message charges.
 
 AWS doesn't provide a hard Cognito spending cap. Restricting the number of users
@@ -62,10 +63,15 @@ CIMD before changing the resource server.
 
 ## Deployment boundary
 
-`auth-template.yaml` is deliberately separate from the deployed closed stack.
-It has no deploy defaults for the globally unique domain or canonical MCP URI.
-Deployment, user creation, API authorizer replacement and opening a remote test
-remain gated actions.
+`auth-template.yaml` is deliberately separate from the deployed closed app
+stack. The auth stack was deployed on 2026-08-28 with the prefix
+`remote-mcp-dev-hg` and zero users. It has no deploy defaults for the globally
+unique domain or canonical MCP URI. User creation, API authorizer replacement
+and opening a remote test remain gated actions.
+
+The Cognito prefix validator also rejects the service-reserved terms `aws`,
+`amazon` and `cognito`, which aren't expressed by the API's basic character
+pattern but are prohibited for hosted prefix domains.
 
 ## Primary sources
 
