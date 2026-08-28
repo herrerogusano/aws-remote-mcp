@@ -133,3 +133,15 @@ comes from keeping the endpoint disabled and compute at zero outside the bounded
 test window rather than claiming that AWS can guarantee a fixed maximum bill.
 Cost Explorer is excluded from runtime and operational scripts because each API
 request costs $0.01 and its data is delayed.
+
+## D-017 - API-closed validation when reserved concurrency is unavailable
+
+The account's regional Lambda quota is 10 and cannot allocate reserved
+concurrency one while preserving AWS's required unreserved pool. Do not change
+unrelated functions or request a larger concurrency quota merely to run a test.
+
+Validate the deployed Lambda/MCP contract through exactly three direct synthetic
+invocations while API Gateway remains disabled. Install an independent
+five-minute shutdown first, remove concurrency zero only for the calls, and
+restore it in `finally`. Treat this as Lambda boundary evidence, not evidence for
+the API Gateway IAM path.
