@@ -30,3 +30,30 @@ AWS or external-service dependency.
 `develop` maps to DEV and `main` maps to PROD. Feature work branches from and
 returns to `develop`; production changes arrive only through a promotion pull
 request. No environment is deployed in Phase 0.
+
+## D-005 - Transport-independent application core
+
+MCP and HTTP adapters will call application services rather than contain tool
+logic. The core depends only on adapter protocols, so all Phase 1 behavior is
+tested with deterministic in-memory fakes and no network access.
+
+## D-006 - Fail-closed operation registry
+
+Only positively registered `free_verified_read` operations may run
+automatically. Controlled-billable, write, sensitive-read, unknown, and absent
+operations are blocked. Later AWS collectors must expand the same registry with
+current evidence instead of bypassing it.
+
+## D-007 - Scoped single-use confirmations
+
+Confirmation tokens are opaque and short-lived. Server-side records bind their
+hash to caller fingerprint, action, canonical payload digest, expiry, and use
+state. A confirmation is consumed before the downstream write begins; an
+ambiguous failure therefore cannot be retried with the same token.
+
+## D-008 - One write and bounded output
+
+Each execution counter permits at most one external-write attempt. Adapter
+results exceeding the configured byte limit are replaced by a normalized error,
+and downstream adapter errors cross the boundary only as sanitized codes and
+messages.

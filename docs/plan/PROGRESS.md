@@ -17,7 +17,7 @@ both long-lived branches. No AWS resources or external integrations exist.
 ## Phase status
 
 - [x] Phase 0 — Bootstrap + CI
-- [ ] Phase 1 — Core tool architecture
+- [x] Phase 1 — Core tool architecture
 - [ ] Phase 2 — Local Streamable HTTP
 - [ ] Phase 3 — Authorization contract
 - [ ] Phase 4 — First AWS remote deployment
@@ -33,7 +33,7 @@ both long-lived branches. No AWS resources or external integrations exist.
 
 ## Active phase
 
-Phase 1 — Core tool architecture
+Phase 2 — Local Streamable HTTP
 
 ## Approved gates
 
@@ -89,17 +89,24 @@ Final required behavior:
 - Telegram/Trello writes require scoped confirmation.
 - Python 3.13 is the single local/CI/future Lambda runtime target.
 - The official MCP Python SDK is constrained to the current stable 2.x line.
+- The transport-independent core uses adapter protocols and offline fakes.
+- AWS operations fail closed unless registered as `free_verified_read`.
+- External confirmations bind caller/action/payload/expiry and are single-use.
+- Tool results, sanitized errors, counters and response-size limits are normalized.
 
 ## Risks and limitations
 
-- The current smoke test proves only the project foundation; protocol and runtime
-  behavior begin in later phases.
+- Real AWS, Telegram and Trello adapters are intentionally absent; only fakes
+  exist in the core phase.
+- Confirmation records are process-local until the deployment design establishes
+  whether shared durable state is required.
 - Lambda/API Gateway compatibility with MCP SDK 2.x Streamable HTTP remains a
   Phase 2 architecture decision.
 
 ## Next action
 
-Start Phase 1 from `develop` after the Phase 0 PR is green and merged.
+Merge the green Phase 1 PR into `develop`, then implement local MCP Streamable
+HTTP in Phase 2.
 
 ## Update instructions
 
