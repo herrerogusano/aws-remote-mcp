@@ -62,6 +62,11 @@ def build_default_registry() -> OperationRegistry:
     return OperationRegistry(
         (
             OperationSpec(
+                "synthetic.aws.list_resources",
+                OperationClassification.FREE_VERIFIED_READ,
+                "Synthetic offline diagnostic; performs no AWS request.",
+            ),
+            OperationSpec(
                 "aws.sts.get_caller_identity",
                 OperationClassification.FREE_VERIFIED_READ,
                 "AWS identity read; pricing must be re-verified before deployment.",

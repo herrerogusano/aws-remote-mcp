@@ -57,3 +57,24 @@ storage is intentionally deferred until the deployment architecture requires it.
 Application results have a common status, data, warnings, sanitized errors,
 counters, and optional confirmation metadata. Adapter output is size-bounded,
 and every execution permits at most one external-write attempt.
+
+## Local MCP transport
+
+Phase 2 wraps the application core in the official MCP Python SDK 2.x ASGI app:
+
+```text
+official MCP client
+  -> http://127.0.0.1:8000/mcp
+  -> modern 2026-07-28 Streamable HTTP
+  -> stateless JSON request/response
+  -> thin MCP tools
+  -> ToolService and offline fakes
+```
+
+The server binds only to loopback, validates Host and Origin, limits request
+bodies to 64 KiB, and exposes no execute/send/create side-effect tools. The
+official client contract is exercised against a real localhost Uvicorn server.
+
+For Phase 4, the preferred Lambda spike is the official ASGI app behind Mangum
+and API Gateway HTTP API v2. See `docs/lambda-compatibility-spike.md`; AWS Lambda
+Web Adapter is the fallback before considering a custom protocol bridge.

@@ -57,3 +57,24 @@ Each execution counter permits at most one external-write attempt. Adapter
 results exceeding the configured byte limit are replaced by a normalized error,
 and downstream adapter errors cross the boundary only as sanitized codes and
 messages.
+
+## D-009 - Modern stateless Streamable HTTP
+
+Use the official MCP Python SDK 2.1.1 ASGI application with current protocol
+revision 2026-07-28, `stateless_http=True`, and `json_response=True`. This avoids
+session affinity and long-lived SSE while preserving real MCP semantics, matching
+the intended Lambda/API Gateway request model.
+
+## D-010 - Local transport boundary
+
+The Phase 2 server binds to `127.0.0.1`, uses one `/mcp` endpoint, enforces a
+64 KiB body cap, and explicitly allowlists local Host and Origin values. Only a
+safe diagnostic, synthetic AWS inventory, and Telegram/Trello preview tools are
+registered.
+
+## D-011 - Lambda adaptation preference
+
+Evaluate Mangum first in Phase 4 because it directly adapts API Gateway HTTP API
+v2 events to the unchanged official ASGI app with a small Python dependency.
+Repeated lifespan behavior must be tested. If it is unsuitable, evaluate AWS
+Lambda Web Adapter before building a custom event/protocol bridge.
