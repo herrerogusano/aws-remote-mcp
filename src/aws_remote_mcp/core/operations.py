@@ -57,7 +57,7 @@ class OperationRegistry:
 
 
 def build_default_registry() -> OperationRegistry:
-    """Seed architectural examples; AWS collectors will expand this in Phase 6."""
+    """Seed safe operations; reviewed AWS collectors will expand this registry."""
 
     return OperationRegistry(
         (

@@ -17,7 +17,7 @@ Sources checked 2026-08-28:
 
 Use the official `mcp` Python package with `mcp>=2.1.1,<3`. Version 2.1.1 is the
 current stable release and supports the 2026-07-28 protocol specification,
-including Streamable HTTP. Transport code is deliberately deferred to Phase 2.
+including Streamable HTTP.
 
 ## D-003 - CI before runtime features
 
@@ -29,13 +29,13 @@ AWS or external-service dependency.
 
 `develop` maps to DEV and `main` maps to PROD. Feature work branches from and
 returns to `develop`; production changes arrive only through a promotion pull
-request. No environment is deployed in Phase 0.
+request. No project environment is currently deployed.
 
 ## D-005 - Transport-independent application core
 
-MCP and HTTP adapters will call application services rather than contain tool
-logic. The core depends only on adapter protocols, so all Phase 1 behavior is
-tested with deterministic in-memory fakes and no network access.
+MCP and HTTP adapters call application services rather than contain tool logic.
+The core depends only on adapter protocols and is tested with deterministic
+in-memory fakes and no network access.
 
 ## D-006 - Fail-closed operation registry
 
@@ -67,17 +67,17 @@ the intended Lambda/API Gateway request model.
 
 ## D-010 - Local transport boundary
 
-The Phase 2 server binds to `127.0.0.1`, uses one `/mcp` endpoint, enforces a
+The local server binds to `127.0.0.1`, uses one `/mcp` endpoint, enforces a
 64 KiB body cap, and explicitly allowlists local Host and Origin values. Only a
 safe diagnostic, synthetic AWS inventory, and Telegram/Trello preview tools are
 registered.
 
 ## D-011 - Lambda adaptation preference
 
-Evaluate Mangum first in Phase 4 because it directly adapts API Gateway HTTP API
-v2 events to the unchanged official ASGI app with a small Python dependency.
-Repeated lifespan behavior must be tested. If it is unsuitable, evaluate AWS
-Lambda Web Adapter before building a custom event/protocol bridge.
+Use Mangum because it directly adapts API Gateway HTTP API v2 events to the
+unchanged official ASGI app with a small Python dependency. Repeated lifespan
+behavior is tested. AWS Lambda Web Adapter remains the fallback before any
+custom event/protocol bridge.
 
 ## D-012 - OAuth protected-resource contract
 
@@ -97,4 +97,39 @@ Cognito plus API Gateway JWT authorization remains the AWS-native candidate.
 Use authorization code + PKCE, custom scope and resource binding. Cognito does
 not offer current MCP Client ID Metadata Document support or standard DCR, so
 the target client must accept a pre-registered client ID/callback. Otherwise
-Gate B must compare alternatives.
+An authorization architecture review must compare alternatives.
+
+## D-015 - Fresh stateless ASGI lifecycle per Lambda invocation
+
+Use Mangum 0.22 with API Gateway HTTP API v2 and create a fresh official MCP
+ASGI app per Lambda invocation. A process-global app cannot re-enter the SDK
+session-manager lifespan on a repeated warm invocation, while disabling lifespan
+leaves its task group uninitialized. Fresh construction preserves the official
+SDK lifecycle and succeeds across repeated events; its overhead will be measured
+in DEV before considering Lambda Web Adapter.
+
+Build the Linux x86_64 artifact with SAM's preview `python-uv` build method and a
+runtime-only lock under `src/`. CI opts into that builder explicitly. This avoids
+host-platform resolution and excludes Windows-only dependencies.
+
+## D-016 - Closed-by-default DEV deployment skeleton
+
+The first deployment is DEV-only and creates no callable endpoint. The default
+API Gateway endpoint is disabled, its route requires AWS IAM authorization, and
+the MCP Lambda has reserved concurrency zero. This temporary infrastructure guard
+is independent from the final MCP OAuth design.
+
+A separately approved test window is at most five minutes. Its opening script
+installs an AWS-side one-time shutdown and creates a request-volume alarm. Only
+then does it set Lambda concurrency to one and enable the endpoint. The API
+target is 1 request/second with burst 1;
+Lambda is 128 MB with a 10-second timeout. Twenty requests in one minute, the
+five-minute deadline, or the explicit close script invokes the fail-closed path.
+
+AWS Budgets and API Gateway throttles are monitoring/target controls, not hard
+spending caps. The existing account-wide monthly budget alerts two email
+subscribers after $0.01 actual spend. Immediate project protection therefore
+comes from keeping the endpoint disabled and compute at zero outside the bounded
+test window rather than claiming that AWS can guarantee a fixed maximum bill.
+Cost Explorer is excluded from runtime and operational scripts because each API
+request costs $0.01 and its data is delayed.

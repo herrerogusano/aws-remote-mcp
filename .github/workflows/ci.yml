@@ -41,7 +41,26 @@ jobs:
         run: uv run mypy
 
       - name: Compile source
-        run: uv run python -m compileall -q src
+        run: uv run python -m compileall -q src safety_shutdown
+
+      - name: Install AWS SAM CLI
+        uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+
+      - name: Validate SAM template
+        run: sam validate --lint --region eu-west-1
+
+      - name: Build Lambda artifact
+        run: sam build --beta-features
+
+      - name: Smoke test built Lambda artifact
+        env:
+          PYTHONPATH: .aws-sam/build/RemoteMcpFunction
+        run: uv run python -c "from aws_remote_mcp.lambda_handler import handler; assert callable(handler)"
+
+      - name: Smoke test built safety artifact
+        env:
+          PYTHONPATH: .aws-sam/build/SafetyShutdownFunction
+        run: uv run python -c "from handler import handler; assert callable(handler)"
 
       - name: Run tests
         run: uv run pytest

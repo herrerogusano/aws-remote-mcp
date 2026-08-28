@@ -11,25 +11,25 @@ MCP client
   -> AWS APIs / Telegram / Trello
 ```
 
-No runtime infrastructure exists in Phase 0. Lambda and API Gateway remain the
-target unless Phase 2 proves that current MCP protocol behavior is incompatible;
-changing compute would require Gate J.
+No runtime infrastructure currently exists. Lambda and API Gateway remain the
+target unless current MCP protocol behavior proves them incompatible; changing
+compute requires a documented architecture review.
 
 ## Delivery model
 
 ```text
-phase branch -> pull request -> develop -> DEV
+feature branch -> pull request -> develop -> DEV
 develop -> promotion pull request -> main -> PROD
 ```
 
-CI starts without live integrations. CD is deferred until manual DEV and PROD
-releases are stable and Gate H is approved.
+CI has no live integrations. CD is deferred until manual DEV and PROD releases
+are stable and its deployment identity and rollback have been reviewed.
 
-## Boundaries carried forward from Exercise 2
+## Application boundaries
 
-Exercise 2 is a design reference, not a package dependency. Later phases will
-adapt its central AWS operation registry, normalized results, cost classifications,
-scoped consent, request counters, partial failures, and safe error translation.
+The core owns a central AWS operation registry, normalized results, cost
+classifications, scoped consent, request counters, partial failures and safe
+error translation without depending on another runtime package.
 
 The remote design adds distinct caller authorization, Lambda IAM, downstream
 credentials, per-tool structured audit records, and API Gateway throttling.
@@ -37,11 +37,11 @@ credentials, per-tool structured audit records, and API Gateway throttling.
 ## Transport-independent core
 
 ```text
-future MCP adapter
+MCP adapter
   -> ToolService
   -> operation registry / confirmation guard / normalized models
   -> adapter protocols
-  -> offline fakes now, real integrations in later phases
+  -> offline fakes now, reviewed real integrations later
 ```
 
 The central registry allows automatic execution only for operations classified
@@ -60,7 +60,7 @@ and every execution permits at most one external-write attempt.
 
 ## Local MCP transport
 
-Phase 2 wraps the application core in the official MCP Python SDK 2.x ASGI app:
+The application core is wrapped in the official MCP Python SDK 2.x ASGI app:
 
 ```text
 official MCP client
@@ -73,11 +73,11 @@ official MCP client
 
 The server binds only to loopback, validates Host and Origin, limits request
 bodies to 64 KiB, and exposes no execute/send/create side-effect tools. The
-official client contract is exercised against a real localhost Uvicorn server.
+official client contract is validated against a real localhost Uvicorn server.
 
-For Phase 4, the preferred Lambda spike is the official ASGI app behind Mangum
-and API Gateway HTTP API v2. See `docs/lambda-compatibility-spike.md`; AWS Lambda
-Web Adapter is the fallback before considering a custom protocol bridge.
+The selected Lambda adapter is the official ASGI app behind Mangum and API
+Gateway HTTP API v2. See `docs/lambda-compatibility-spike.md`; AWS Lambda Web
+Adapter remains the fallback before considering a custom protocol bridge.
 
 ## Authorization boundary
 

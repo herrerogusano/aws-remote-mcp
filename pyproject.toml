@@ -5,6 +5,7 @@ description = "Authenticated, cost-aware remote MCP server for AWS."
 readme = "README.md"
 requires-python = ">=3.13,<3.14"
 dependencies = [
+    "mangum>=0.22,<1",
     "mcp>=2.1.1,<3",
     "pyjwt>=2.13,<3",
     "pydantic>=2.13,<3",
@@ -29,6 +30,7 @@ dev = [
 [tool.pytest.ini_options]
 addopts = "-ra --strict-config --strict-markers"
 testpaths = ["tests"]
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 88
@@ -40,4 +42,4 @@ select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
 [tool.mypy]
 python_version = "3.13"
 strict = true
-files = ["src", "tests"]
+files = ["src", "safety_shutdown", "tests"]
