@@ -14,8 +14,8 @@ Globals:
     Runtime: python3.13
     Architectures:
       - x86_64
-    MemorySize: 256
-    Timeout: 15
+    MemorySize: 128
+    Timeout: 10
     Tracing: Disabled
     Environment:
       Variables:
@@ -80,9 +80,13 @@ Resources:
       Name: !Sub "aws-remote-mcp-${Environment}"
       Description: Safe synthetic MCP endpoint for the DEV environment.
       StageName: !Ref Environment
+      DisableExecuteApiEndpoint: true
       FailOnWarnings: true
+      Auth:
+        EnableIamAuthorizer: true
+        DefaultAuthorizer: AWS_IAM
       DefaultRouteSettings:
-        ThrottlingBurstLimit: 2
+        ThrottlingBurstLimit: 1
         ThrottlingRateLimit: 1
       AccessLogSettings:
         DestinationArn: !GetAtt ApiAccessLogGroup.Arn
@@ -104,7 +108,7 @@ Resources:
       CodeUri: src/
       Handler: aws_remote_mcp.lambda_handler.handler
       Role: !GetAtt RemoteMcpExecutionRole.Arn
-      ReservedConcurrentExecutions: 2
+      ReservedConcurrentExecutions: 0
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
@@ -117,14 +121,163 @@ Resources:
             Method: POST
             Path: /mcp
             PayloadFormatVersion: "2.0"
-            TimeoutInMillis: 15000
+            TimeoutInMillis: 10000
       Tags:
         environment: !Ref Environment
         project: aws-remote-mcp
 
+  SafetyShutdownLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/aws-remote-mcp-safety-shutdown-${Environment}"
+      RetentionInDays: 7
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "aws-remote-mcp-safety-shutdown-${Environment}"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref SafetyShutdownTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowOnlyTheTrafficAlarm
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref SafetyShutdownTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnEquals:
+                aws:SourceArn: !Sub "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:aws-remote-mcp-${Environment}-request-kill-switch"
+
+  SafetyShutdownExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: close-only-this-dev-endpoint
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: WriteOwnLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${SafetyShutdownLogGroup.Arn}:*"
+              - Sid: DisableOnlyThisApi
+                Effect: Allow
+                Action: apigateway:PATCH
+                Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/${RemoteMcpApi}"
+              - Sid: StopOnlyThisFunction
+                Effect: Allow
+                Action: lambda:PutFunctionConcurrency
+                Resource: !GetAtt RemoteMcpFunction.Arn
+              - Sid: DeleteOnlyThisTrafficAlarm
+                Effect: Allow
+                Action: cloudwatch:DeleteAlarms
+                Resource: !Sub "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:aws-remote-mcp-${Environment}-request-kill-switch"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - SafetyShutdownLogGroup
+    Properties:
+      FunctionName: !Sub "aws-remote-mcp-safety-shutdown-${Environment}"
+      Description: Fail-closed kill switch for the temporary DEV test window.
+      CodeUri: safety_shutdown/
+      Handler: handler.handler
+      Role: !GetAtt SafetyShutdownExecutionRole.Arn
+      ReservedConcurrentExecutions: 1
+      Environment:
+        Variables:
+          TARGET_API_ID: !Ref RemoteMcpApi
+          TARGET_FUNCTION_NAME: !Ref RemoteMcpFunction
+          TRAFFIC_ALARM_NAME: !Sub "aws-remote-mcp-${Environment}-request-kill-switch"
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: INFO
+      Events:
+        TrafficAlarm:
+          Type: SNS
+          Properties:
+            Topic: !Ref SafetyShutdownTopic
+      Tags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+  SafetyShutdownScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Sub "aws-remote-mcp-safety-${Environment}"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+                aws:SourceArn: !GetAtt SafetyShutdownScheduleGroup.Arn
+      Policies:
+        - PolicyName: invoke-only-safety-shutdown
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt SafetyShutdownFunction.Arn
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
 Outputs:
   DevMcpEndpoint:
-    Description: DEV MCP endpoint. Authentication is introduced in Phase 5.
+    Description: Closed-by-default DEV MCP endpoint; production OAuth is pending.
     Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Environment}/mcp"
   DevApiId:
     Description: DEV HTTP API identifier.
@@ -132,3 +285,15 @@ Outputs:
   DevFunctionName:
     Description: DEV Lambda function name.
     Value: !Ref RemoteMcpFunction
+  SafetyShutdownFunctionArn:
+    Description: Function invoked to close the temporary DEV test window.
+    Value: !GetAtt SafetyShutdownFunction.Arn
+  SafetyShutdownSchedulerRoleArn:
+    Description: Exact role used by a one-time automatic close schedule.
+    Value: !GetAtt SafetyShutdownSchedulerRole.Arn
+  SafetyShutdownScheduleGroupName:
+    Description: Dedicated group for one-time automatic close schedules.
+    Value: !Ref SafetyShutdownScheduleGroup
+  SafetyShutdownTopicArn:
+    Description: Exact SNS topic used by the temporary request-volume alarm.
+    Value: !Ref SafetyShutdownTopic

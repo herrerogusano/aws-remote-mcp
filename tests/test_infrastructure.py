@@ -14,12 +14,21 @@ def test_template_is_dev_only_and_bounded() -> None:
 
     assert "AllowedValues:\n      - dev" in template
     assert "Runtime: python3.13" in template
-    assert "MemorySize: 256" in template
-    assert "Timeout: 15" in template
-    assert "ReservedConcurrentExecutions: 2" in template
-    assert "ThrottlingBurstLimit: 2" in template
+    assert "MemorySize: 128" in template
+    assert "Timeout: 10" in template
+    assert "ReservedConcurrentExecutions: 0" in template
+    assert "ReservedConcurrentExecutions: 1" in template
+    assert "ThrottlingBurstLimit: 1" in template
     assert "ThrottlingRateLimit: 1" in template
-    assert template.count("RetentionInDays: 7") == 2
+    assert template.count("RetentionInDays: 7") == 3
+
+
+def test_endpoint_is_closed_and_iam_authenticated_by_default() -> None:
+    template = template_text()
+
+    assert "DisableExecuteApiEndpoint: true" in template
+    assert "EnableIamAuthorizer: true" in template
+    assert "DefaultAuthorizer: AWS_IAM" in template
 
 
 def test_template_iam_is_exactly_log_delivery() -> None:
@@ -27,6 +36,10 @@ def test_template_iam_is_exactly_log_delivery() -> None:
 
     assert "logs:CreateLogStream" in template
     assert "logs:PutLogEvents" in template
+    assert "apigateway:PATCH" in template
+    assert "lambda:PutFunctionConcurrency" in template
+    assert "cloudwatch:DeleteAlarms" in template
+    assert "lambda:InvokeFunction" in template
     assert 'Action: "*"' not in template
     assert "AdministratorAccess" not in template
     assert "PowerUserAccess" not in template
@@ -56,3 +69,16 @@ def test_only_current_mcp_post_route_is_exposed() -> None:
     assert 'PayloadFormatVersion: "2.0"' in template
     assert "Method: ANY" not in template
     assert "Method: GET" not in template
+
+
+def test_automatic_shutdown_is_wired_to_exact_resources() -> None:
+    template = template_text()
+
+    assert "SafetyShutdownFunction:" in template
+    assert "SafetyShutdownTopic:" in template
+    assert "SafetyShutdownScheduleGroup:" in template
+    assert "Service: scheduler.amazonaws.com" in template
+    assert "Service: cloudwatch.amazonaws.com" in template
+    assert "aws-remote-mcp-${Environment}-request-kill-switch" in template
+    assert "close-only-this-dev-endpoint" in template
+    assert "aws:SourceArn: !GetAtt SafetyShutdownScheduleGroup.Arn" in template

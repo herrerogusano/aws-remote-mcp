@@ -1,7 +1,7 @@
 # DEV deployment runbook
 
-This runbook is prepared for Phase 4. Do not run the deployment command until
-Gate A is explicitly approved.
+Deployment uses two separate approvals. The first permits only a closed stack;
+a later explicit approval permits one tightly bounded validation window.
 
 ## Preflight
 
@@ -15,10 +15,10 @@ sam validate --lint --region eu-west-1
 sam build --beta-features
 ```
 
-The template allows only `Environment=dev`. The Lambda artifact is Linux x86_64,
-the function exposes only safe synthetic tools, and no secrets are required.
+The template accepts only `Environment=dev`. It needs no secrets and exposes no
+real AWS inventory or external write tools.
 
-## Deployment after Gate A
+## Approved closed deployment
 
 ```powershell
 sam deploy `
@@ -31,36 +31,61 @@ sam deploy `
   --no-fail-on-empty-changeset
 ```
 
-Capture the `DevMcpEndpoint`, `DevApiId`, and `DevFunctionName` stack outputs.
-Call only `tools/list`, `diagnostico`, and `listar_recursos_aws_sintetico`.
-Confirm that responses declare `environment=dev` and
-`external_side_effects=false`; do not send credentials or sensitive payloads.
+After deployment, verify both fail-closed invariants before doing anything else:
 
-Inspect the two 7-day log groups for request identifiers, status, latency, and
-sanitized application/system events. Record cold and warm request latency.
+```powershell
+aws apigatewayv2 get-api --api-id <DevApiId> --region eu-west-1
+aws lambda get-function-concurrency --function-name aws-remote-mcp-dev --region eu-west-1
+```
+
+`DisableExecuteApiEndpoint` must be `true` and reserved concurrency must be `0`.
+Do not open the endpoint as part of the closed-stack deployment.
+
+## Separately approved validation window
+
+The opener refuses to proceed if current-month account spend is at least $0.10.
+It creates an auto-deleting AWS Scheduler deadline and a CloudWatch request alarm
+before enabling anything. The endpoint requires SigV4/AWS IAM authorization.
+
+```powershell
+.\scripts\open-dev-window.ps1
+```
+
+The maximum window is five minutes. The alarm invokes the safety shutdown after
+20 requests in one minute. Lambda concurrency is one. Call only `tools/list`,
+`diagnostico`, and `listar_recursos_aws_sintetico`, then close immediately:
+
+```powershell
+.\scripts\close-dev-window.ps1
+```
+
+Verify again that the API is disabled, concurrency is zero, and the temporary
+traffic alarm no longer exists. Inspect sanitized logs and record cold/warm
+latency without sending credentials or sensitive application payloads.
 
 ## Expected resources
 
 - CloudFormation stack `aws-remote-mcp-dev`;
-- one HTTP API and `dev` stage;
-- one Lambda function and one Lambda permission;
-- one IAM execution role with only write access to its own log streams;
-- two CloudWatch log groups with seven-day retention;
-- deployment artifacts in the account's SAM-managed regional S3 bucket.
+- one disabled-by-default, IAM-authorized HTTP API and `dev` stage;
+- the MCP Lambda, permission and logs, stopped by default;
+- an idle safety-shutdown Lambda and logs;
+- a safety SNS topic and exact topic policy;
+- a dedicated Scheduler group for isolated one-time shutdown schedules;
+- three least-privilege IAM roles: MCP execution, shutdown execution, scheduler;
+- deployment artifacts in the existing SAM-managed regional S3 bucket.
 
-No Cognito, VPC, NAT gateway, provisioned concurrency, database, queue, secret,
-custom domain, WAF, or production environment is created.
+Only during a validation window, one auto-deleting Scheduler schedule and one
+temporary CloudWatch alarm also exist. There is no Cognito, VPC, NAT gateway,
+provisioned concurrency, database, queue, secret, custom domain, WAF or PROD.
 
 ## Rollback
 
-CloudFormation rolls back a failed create automatically. For an accepted but
-unwanted deployment, first capture the stack events and logs, then request the
-separate destructive approval required before running:
+CloudFormation rolls back a failed create. Removing an accepted deployment needs
+the separate destructive approval before:
 
 ```powershell
 sam delete --stack-name aws-remote-mcp-dev --region eu-west-1
 ```
 
-The stack owns no business data. Its two log groups are configured for deletion
-with the stack. The shared SAM artifact bucket, if present, is not deleted by
-this command.
+The stack owns no business data. Its three log groups are deleted with the stack;
+the shared SAM artifact bucket is retained.
