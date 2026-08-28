@@ -52,5 +52,10 @@ jobs:
       - name: Build Lambda artifact
         run: sam build --beta-features
 
+      - name: Smoke test built Lambda artifact
+        env:
+          PYTHONPATH: .aws-sam/build/RemoteMcpFunction
+        run: uv run python -c "from aws_remote_mcp.lambda_handler import handler; assert callable(handler)"
+
       - name: Run tests
         run: uv run pytest
