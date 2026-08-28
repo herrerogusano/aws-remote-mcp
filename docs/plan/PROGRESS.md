@@ -19,7 +19,7 @@ both long-lived branches. No AWS resources or external integrations exist.
 - [x] Phase 0 — Bootstrap + CI
 - [x] Phase 1 — Core tool architecture
 - [x] Phase 2 — Local Streamable HTTP
-- [ ] Phase 3 — Authorization contract
+- [x] Phase 3 — Authorization contract
 - [ ] Phase 4 — First AWS remote deployment
 - [ ] Phase 5 — AWS authentication
 - [ ] Phase 6 — AWS resource tool
@@ -33,7 +33,7 @@ both long-lived branches. No AWS resources or external integrations exist.
 
 ## Active phase
 
-Phase 3 — Authorization contract
+Phase 4 — First AWS remote deployment
 
 ## Approved gates
 
@@ -97,6 +97,12 @@ Final required behavior:
 - The local server binds to loopback and enforces Host, Origin and 64 KiB body limits.
 - Mangum is the preferred Phase 4 ASGI/Lambda adapter spike; Lambda Web Adapter is
   the fallback before a custom bridge.
+- The protected app publishes RFC 9728 metadata and enforces 401/403 bearer
+  challenges with the `aws-remote-mcp/use` scope.
+- Offline JWT verification proves signature, issuer, audience, expiry, access-token
+  type and scope handling; callers retain only normalized identity fields.
+- Cognito/API Gateway remains the preferred auth candidate only for clients that
+  support a pre-registered OAuth client.
 
 ## Risks and limitations
 
@@ -104,15 +110,17 @@ Final required behavior:
   exist in the core phase.
 - Confirmation records are process-local until the deployment design establishes
   whether shared durable state is required.
-- Authentication is intentionally absent until Phase 3; the HTTP endpoint is
-  local-only in Phase 2.
-- Lambda/API Gateway compatibility with MCP SDK 2.x Streamable HTTP remains a
-  Phase 2 architecture decision.
+- Phase 3 provides a protected app contract but intentionally creates no real
+  authorization server or remotely exposed endpoint.
+- Cognito does not provide current MCP CIMD or standard DCR registration; target
+  client static-registration compatibility must be proven before Gate B.
+- The preferred Mangum/API Gateway adaptation still needs Phase 4 event-contract,
+  repeated-lifecycle, package-size and latency validation.
 
 ## Next action
 
-Merge the green Phase 2 PR into `develop`, then implement the offline
-authorization/resource-server contract in Phase 3.
+Merge the green Phase 3 PR into `develop`, prepare all safe Phase 4 SAM/Lambda/API
+Gateway work locally, then stop at Gate A before the first `sam deploy`.
 
 ## Update instructions
 

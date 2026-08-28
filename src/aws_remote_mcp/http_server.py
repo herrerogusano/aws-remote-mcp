@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from mcp.server import MCPServer
+from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 
@@ -16,6 +19,11 @@ from aws_remote_mcp.adapters.fakes import (
 from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.core.models import CallerContext, ToolIssue, ToolResult
 from aws_remote_mcp.core.operations import build_default_registry
+from aws_remote_mcp.security.authorization import (
+    AuthorizationConfig,
+    ScopeChallengeMiddleware,
+    current_authenticated_caller,
+)
 from aws_remote_mcp.services.tools import ToolService
 
 SERVER_NAME = "aws-remote-mcp"
@@ -92,7 +100,12 @@ def build_tool_service() -> ToolService:
     )
 
 
-def create_server() -> MCPServer:
+def create_server(
+    *,
+    caller_provider: Callable[[], CallerContext] = lambda: LOCAL_CALLER,
+    auth_settings: AuthSettings | None = None,
+    token_verifier: TokenVerifier | None = None,
+) -> MCPServer:
     """Create a fresh server and isolate mutable fake/confirmation state."""
 
     server = MCPServer(
@@ -100,6 +113,8 @@ def create_server() -> MCPServer:
         version=SERVER_VERSION,
         description="Safe local precursor to an authenticated AWS remote MCP server.",
         instructions="All integrations are synthetic or preview-only in this phase.",
+        auth=auth_settings,
+        token_verifier=token_verifier,
     )
     tools = build_tool_service()
 
@@ -127,7 +142,9 @@ def create_server() -> MCPServer:
     def prepare_telegram_message(message: str) -> dict[str, Any]:
         """Preview a local Telegram message with scoped confirmation metadata."""
 
-        result = tools.prepare_telegram_message(LOCAL_CALLER, "local-preview", message)
+        result = tools.prepare_telegram_message(
+            caller_provider(), "local-preview", message
+        )
         return serialize_tool_result(result)
 
     @server.tool(name="preparar_tarjeta_trello", structured_output=True)
@@ -135,7 +152,7 @@ def create_server() -> MCPServer:
         """Preview a local-only Trello card and return scoped confirmation metadata."""
 
         result = tools.prepare_trello_card(
-            LOCAL_CALLER,
+            caller_provider(),
             "local-preview",
             "local-preview",
             title,
@@ -167,6 +184,33 @@ def create_app(*, allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS) -> Starl
         transport_security=transport_security(allowed_hosts=allowed_hosts),
         host=LOCAL_HOST,
     )
+
+
+def create_protected_app(
+    *,
+    authorization: AuthorizationConfig,
+    token_verifier: TokenVerifier,
+    allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS,
+) -> Starlette:
+    """Build the same MCP app as an OAuth-protected resource server."""
+
+    app = create_server(
+        caller_provider=current_authenticated_caller,
+        auth_settings=authorization.sdk_settings(),
+        token_verifier=token_verifier,
+    ).streamable_http_app(
+        streamable_http_path=MCP_PATH,
+        json_response=True,
+        stateless_http=True,
+        max_request_body_size=MAX_HTTP_REQUEST_BYTES,
+        transport_security=transport_security(allowed_hosts=allowed_hosts),
+        host=LOCAL_HOST,
+    )
+    app.add_middleware(
+        ScopeChallengeMiddleware,
+        required_scopes=authorization.required_scopes,
+    )
+    return app
 
 
 def main() -> None:
