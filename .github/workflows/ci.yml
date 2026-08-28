@@ -43,5 +43,14 @@ jobs:
       - name: Compile source
         run: uv run python -m compileall -q src
 
+      - name: Install AWS SAM CLI
+        uses: aws-actions/setup-sam@89ddb14d60e682855e3fea4be85b3c56485de310 # v3
+
+      - name: Validate SAM template
+        run: sam validate --lint --region eu-west-1
+
+      - name: Build Lambda artifact
+        run: sam build --beta-features
+
       - name: Run tests
         run: uv run pytest

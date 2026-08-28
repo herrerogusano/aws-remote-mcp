@@ -72,11 +72,11 @@ def serialize_tool_result(result: ToolResult) -> dict[str, Any]:
     return serialized
 
 
-def build_tool_service() -> ToolService:
+def build_tool_service(*, environment: str = "local") -> ToolService:
     aws = FakeAwsAdapter(
         responses={
             "synthetic.aws.list_resources": {
-                "environment": "local",
+                "environment": environment,
                 "synthetic": True,
                 "resources": [
                     {
@@ -105,6 +105,8 @@ def create_server(
     caller_provider: Callable[[], CallerContext] = lambda: LOCAL_CALLER,
     auth_settings: AuthSettings | None = None,
     token_verifier: TokenVerifier | None = None,
+    environment: str = "local",
+    include_previews: bool = True,
 ) -> MCPServer:
     """Create a fresh server and isolate mutable fake/confirmation state."""
 
@@ -116,7 +118,7 @@ def create_server(
         auth=auth_settings,
         token_verifier=token_verifier,
     )
-    tools = build_tool_service()
+    tools = build_tool_service(environment=environment)
 
     @server.tool(name="diagnostico", structured_output=True)
     def diagnostic() -> dict[str, Any]:
@@ -127,7 +129,7 @@ def create_server(
             "server": SERVER_NAME,
             "version": SERVER_VERSION,
             "transport": "streamable-http",
-            "environment": "local",
+            "environment": environment,
             "external_side_effects": False,
         }
 
@@ -138,50 +140,64 @@ def create_server(
         result = tools.run_aws_operation("synthetic.aws.list_resources", {})
         return serialize_tool_result(result)
 
-    @server.tool(name="preparar_mensaje_telegram", structured_output=True)
-    def prepare_telegram_message(message: str) -> dict[str, Any]:
-        """Preview a local Telegram message with scoped confirmation metadata."""
+    if include_previews:
 
-        result = tools.prepare_telegram_message(
-            caller_provider(), "local-preview", message
-        )
-        return serialize_tool_result(result)
+        @server.tool(name="preparar_mensaje_telegram", structured_output=True)
+        def prepare_telegram_message(message: str) -> dict[str, Any]:
+            """Preview a local Telegram message with confirmation metadata."""
 
-    @server.tool(name="preparar_tarjeta_trello", structured_output=True)
-    def prepare_trello_card(title: str, description: str = "") -> dict[str, Any]:
-        """Preview a local-only Trello card and return scoped confirmation metadata."""
+            result = tools.prepare_telegram_message(
+                caller_provider(), "local-preview", message
+            )
+            return serialize_tool_result(result)
 
-        result = tools.prepare_trello_card(
-            caller_provider(),
-            "local-preview",
-            "local-preview",
-            title,
-            description,
-        )
-        return serialize_tool_result(result)
+        @server.tool(name="preparar_tarjeta_trello", structured_output=True)
+        def prepare_trello_card(title: str, description: str = "") -> dict[str, Any]:
+            """Preview a local Trello card with confirmation metadata."""
+
+            result = tools.prepare_trello_card(
+                caller_provider(),
+                "local-preview",
+                "local-preview",
+                title,
+                description,
+            )
+            return serialize_tool_result(result)
 
     return server
 
 
 def transport_security(
-    *, allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS
+    *,
+    allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS,
+    allowed_origins: tuple[str, ...] = LOCAL_ALLOWED_ORIGINS,
 ) -> TransportSecuritySettings:
     return TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=list(allowed_hosts),
-        allowed_origins=list(LOCAL_ALLOWED_ORIGINS),
+        allowed_origins=list(allowed_origins),
     )
 
 
-def create_app(*, allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS) -> Starlette:
+def create_app(
+    *,
+    allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS,
+    allowed_origins: tuple[str, ...] = LOCAL_ALLOWED_ORIGINS,
+    environment: str = "local",
+    include_previews: bool = True,
+) -> Starlette:
     """Build the stateless, JSON-response ASGI application."""
 
-    return create_server().streamable_http_app(
+    return create_server(
+        environment=environment, include_previews=include_previews
+    ).streamable_http_app(
         streamable_http_path=MCP_PATH,
         json_response=True,
         stateless_http=True,
         max_request_body_size=MAX_HTTP_REQUEST_BYTES,
-        transport_security=transport_security(allowed_hosts=allowed_hosts),
+        transport_security=transport_security(
+            allowed_hosts=allowed_hosts, allowed_origins=allowed_origins
+        ),
         host=LOCAL_HOST,
     )
 

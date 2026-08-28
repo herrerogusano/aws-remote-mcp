@@ -22,6 +22,8 @@ uv run ruff format --check .
 uv run ruff check .
 uv run mypy
 uv run pytest
+sam validate --lint --region eu-west-1
+sam build --beta-features
 ```
 
 Run the local server:
@@ -60,3 +62,5 @@ actions remain subject to the approval gates in `docs/plan/GATES.md`.
 - Future tool calls must use structured audit logging and bounded traffic.
 
 See `PLAN.md` and `docs/plan/PROGRESS.md` for the full roadmap and current state.
+The prepared DEV deployment procedure is in `docs/deployment-runbook.md`; Gate A
+approval is mandatory before executing it.

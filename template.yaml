@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Safe DEV-only AWS Remote MCP skeleton.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures:
+      - x86_64
+    MemorySize: 256
+    Timeout: 15
+    Tracing: Disabled
+    Environment:
+      Variables:
+        APP_ENVIRONMENT: !Ref Environment
+
+Resources:
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/aws-remote-mcp-${Environment}"
+      RetentionInDays: 7
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/aws-remote-mcp-${Environment}"
+      RetentionInDays: 7
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  RemoteMcpExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: write-own-log-streams
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${LambdaLogGroup.Arn}:*"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  RemoteMcpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      Name: !Sub "aws-remote-mcp-${Environment}"
+      Description: Safe synthetic MCP endpoint for the DEV environment.
+      StageName: !Ref Environment
+      FailOnWarnings: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 2
+        ThrottlingRateLimit: 1
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: !Sub >-
+          {"environment":"${Environment}","requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationLatency":"$context.integrationLatency"}
+      Tags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+  RemoteMcpFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python-uv
+    DependsOn:
+      - LambdaLogGroup
+    Properties:
+      FunctionName: !Sub "aws-remote-mcp-${Environment}"
+      Description: Safe synthetic Streamable HTTP MCP skeleton.
+      CodeUri: src/
+      Handler: aws_remote_mcp.lambda_handler.handler
+      Role: !GetAtt RemoteMcpExecutionRole.Arn
+      ReservedConcurrentExecutions: 2
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: INFO
+      Events:
+        McpPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RemoteMcpApi
+            Method: POST
+            Path: /mcp
+            PayloadFormatVersion: "2.0"
+            TimeoutInMillis: 15000
+      Tags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+Outputs:
+  DevMcpEndpoint:
+    Description: DEV MCP endpoint. Authentication is introduced in Phase 5.
+    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Environment}/mcp"
+  DevApiId:
+    Description: DEV HTTP API identifier.
+    Value: !Ref RemoteMcpApi
+  DevFunctionName:
+    Description: DEV Lambda function name.
+    Value: !Ref RemoteMcpFunction

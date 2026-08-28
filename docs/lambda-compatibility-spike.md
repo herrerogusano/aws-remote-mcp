@@ -45,9 +45,10 @@ count, but it would duplicate header, body, lifespan, binary response and error
 translation semantics. A bridge built against SDK internals would also be brittle
 and risks creating a non-compliant MCP-like endpoint.
 
-## Phase 4 preference
+## Phase 4 result
 
-Start with Mangum and an explicit HTTP API v2 event contract test. Validate:
+Mangum 0.22.0 correctly translates the HTTP API v2 event and response contract.
+An explicit contract test validates:
 
 1. modern `server/discover`, `tools/list` and `tools/call` events;
 2. Host/Origin forwarding behind the API Gateway hostname;
@@ -55,13 +56,24 @@ Start with Mangum and an explicit HTTP API v2 event contract test. Validate:
 4. JSON response headers and base64 flags;
 5. package size and cold-start timing.
 
-If repeated lifecycle behavior is incorrect, evaluate the AWS Lambda Web Adapter
-before any custom bridge. No AWS resource is created by this spike.
+The SDK session manager cannot start a second time when one process-global ASGI
+app is started and stopped for consecutive Lambda events. Disabling lifespan is
+also invalid because its task group is then uninitialized. The selected stateless
+adapter therefore constructs a fresh ASGI app and Mangum adapter per invocation,
+keeps `lifespan="auto"`, and strips the `/dev` API stage before routing `/mcp`.
+Two consecutive synthetic events both succeed and expose only the diagnostic and
+synthetic AWS tools. This keeps the official SDK lifecycle intact at the cost of
+small per-request initialization overhead, which will be measured after Gate A.
+
+The Lambda artifact is built for Linux x86_64 using SAM's `python-uv` builder.
+It is approximately 30.5 MB uncompressed and contains no Windows-only runtime
+packages. No AWS resource was created by this spike.
 
 ## Sources
 
 - https://modelcontextprotocol.io/specification/2026-07-28/
 - https://py.sdk.modelcontextprotocol.io/
 - https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-quotas.html
+- https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/building-python-uv.html
 - https://github.com/Kludex/mangum
 - https://github.com/aws/aws-lambda-web-adapter

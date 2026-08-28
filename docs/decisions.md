@@ -98,3 +98,24 @@ Use authorization code + PKCE, custom scope and resource binding. Cognito does
 not offer current MCP Client ID Metadata Document support or standard DCR, so
 the target client must accept a pre-registered client ID/callback. Otherwise
 Gate B must compare alternatives.
+
+## D-015 - Fresh stateless ASGI lifecycle per Lambda invocation
+
+Use Mangum 0.22 with API Gateway HTTP API v2 and create a fresh official MCP
+ASGI app per Lambda invocation. A process-global app cannot re-enter the SDK
+session-manager lifespan on a repeated warm invocation, while disabling lifespan
+leaves its task group uninitialized. Fresh construction preserves the official
+SDK lifecycle and succeeds across repeated events; its overhead will be measured
+in DEV before considering Lambda Web Adapter.
+
+Build the Linux x86_64 artifact with SAM's preview `python-uv` build method and a
+runtime-only lock under `src/`. CI opts into that builder explicitly. This avoids
+host-platform resolution and excludes Windows-only dependencies.
+
+## D-016 - Minimal unauthenticated DEV deployment skeleton
+
+The first deployment is DEV-only and exposes POST `/dev/mcp` with diagnostic and
+synthetic AWS tools only. It has no external integrations or side effects. API
+Gateway rate is 1 request/second with burst 2; Lambda has 256 MB, a 15-second
+timeout and reserved concurrency 2; logs expire after 7 days. Authentication is
+the next phase, so Gate A must explicitly accept this short-lived public endpoint.

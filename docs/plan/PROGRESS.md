@@ -10,9 +10,10 @@ Region: `eu-west-1`
 
 ## Current state
 
-Repository bootstrapped with a reproducible Python 3.13 + uv project. Phase 0
-quality checks pass locally and CI is configured for pull requests and pushes to
-both long-lived branches. No AWS resources or external integrations exist.
+Phases 0-3 are merged into `develop`. The DEV-only SAM stack, Lambda adapter,
+bounded infrastructure and deployment runbook for Phase 4 are prepared and pass
+offline checks. Gate A is pending; no AWS deployment or external integration
+has been performed.
 
 ## Phase status
 
@@ -41,7 +42,7 @@ None.
 
 ## Pending gates
 
-Gate A will be required before the first real AWS deployment.
+Gate A is pending before the first `sam deploy` to `eu-west-1`.
 
 ## Runtime resources
 
@@ -63,7 +64,8 @@ Neither environment is assumed deployed yet.
 ## CI
 
 Implemented in `.github/workflows/ci.yml`: locked dependency installation,
-format checking, lint, strict typing, source compilation and offline unit tests.
+format checking, lint, strict typing, source compilation, SAM lint/build and
+offline unit tests.
 
 ## CD
 
@@ -103,6 +105,12 @@ Final required behavior:
   type and scope handling; callers retain only normalized identity fields.
 - Cognito/API Gateway remains the preferred auth candidate only for clients that
   support a pre-registered OAuth client.
+- Mangum uses a fresh stateless MCP ASGI app per Lambda event so the SDK lifespan
+  remains valid across warm invocations.
+- The Lambda artifact uses SAM's preview `python-uv` Linux x86_64 builder with a
+  runtime-only lock under `src/`.
+- The first DEV stack is bounded to 256 MB, 15 seconds, concurrency 2, API rate
+  1/second with burst 2, and two seven-day log groups.
 
 ## Risks and limitations
 
@@ -114,13 +122,18 @@ Final required behavior:
   authorization server or remotely exposed endpoint.
 - Cognito does not provide current MCP CIMD or standard DCR registration; target
   client static-registration compatibility must be proven before Gate B.
-- The preferred Mangum/API Gateway adaptation still needs Phase 4 event-contract,
-  repeated-lifecycle, package-size and latency validation.
+- Mangum event translation, repeated lifecycle and package size are validated
+  offline; cold/warm latency still requires the Gate A deployment.
+- The Phase 4 endpoint has no authentication until Phase 5. Its only tools are
+  diagnostic and synthetic, with throttling and concurrency bounds, but the URL
+  will be publicly callable during this short-lived DEV validation.
+- SAM's `python-uv` builder is currently an AWS preview feature.
 
 ## Next action
 
-Merge the green Phase 3 PR into `develop`, prepare all safe Phase 4 SAM/Lambda/API
-Gateway work locally, then stop at Gate A before the first `sam deploy`.
+Open and validate the Phase 4 PR, then stop at Gate A. After explicit approval,
+deploy only the DEV stack, run safe synthetic checks, inspect sanitized logs and
+measure cold/warm latency.
 
 ## Update instructions
 
