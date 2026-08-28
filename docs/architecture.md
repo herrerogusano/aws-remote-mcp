@@ -78,3 +78,15 @@ official client contract is exercised against a real localhost Uvicorn server.
 For Phase 4, the preferred Lambda spike is the official ASGI app behind Mangum
 and API Gateway HTTP API v2. See `docs/lambda-compatibility-spike.md`; AWS Lambda
 Web Adapter is the fallback before considering a custom protocol bridge.
+
+## Authorization boundary
+
+The protected variant of the ASGI app uses the official SDK bearer middleware,
+an injected token-verifier protocol and public RFC 9728 protected-resource
+metadata. A challenge middleware adds the operation's authoritative scope to
+401/403 `WWW-Authenticate` responses.
+
+Validated token data becomes only `CallerContext(issuer, subject, scopes)` before
+entering application services. The bearer token remains inside the HTTP auth
+boundary and is not a downstream credential. The initial MCP access scope is
+`aws-remote-mcp/use`; confirmation is still independently required for writes.

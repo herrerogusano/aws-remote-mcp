@@ -78,3 +78,23 @@ Evaluate Mangum first in Phase 4 because it directly adapts API Gateway HTTP API
 v2 events to the unchanged official ASGI app with a small Python dependency.
 Repeated lifespan behavior must be tested. If it is unsuitable, evaluate AWS
 Lambda Web Adapter before building a custom event/protocol bridge.
+
+## D-012 - OAuth protected-resource contract
+
+Expose RFC 9728 metadata and return MCP-aligned bearer challenges. Authentication
+failures are 401; valid tokens with insufficient scope are 403. Challenges name
+the protected-resource metadata URI and `aws-remote-mcp/use` scope.
+
+## D-013 - Audience-bound access tokens
+
+Accept only access tokens whose issuer, signature, expiry and audience are valid
+for this MCP resource. Normalize only issuer, subject and scopes for application
+services. Never forward the inbound token to AWS, Telegram or Trello.
+
+## D-014 - Cognito requires pre-registration compatibility
+
+Cognito plus API Gateway JWT authorization remains the AWS-native candidate.
+Use authorization code + PKCE, custom scope and resource binding. Cognito does
+not offer current MCP Client ID Metadata Document support or standard DCR, so
+the target client must accept a pre-registered client ID/callback. Otherwise
+Gate B must compare alternatives.
