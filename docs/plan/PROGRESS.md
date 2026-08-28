@@ -10,11 +10,13 @@ Region: `eu-west-1`
 
 ## Current state
 
-Planning package created. No implementation is assumed yet.
+Repository bootstrapped with a reproducible Python 3.13 + uv project. Phase 0
+quality checks pass locally and CI is configured for pull requests and pushes to
+both long-lived branches. No AWS resources or external integrations exist.
 
 ## Phase status
 
-- [ ] Phase 0 — Bootstrap + CI
+- [x] Phase 0 — Bootstrap + CI
 - [ ] Phase 1 — Core tool architecture
 - [ ] Phase 2 — Local Streamable HTTP
 - [ ] Phase 3 — Authorization contract
@@ -31,7 +33,7 @@ Planning package created. No implementation is assumed yet.
 
 ## Active phase
 
-Phase 0 — Bootstrap + CI
+Phase 1 — Core tool architecture
 
 ## Approved gates
 
@@ -60,7 +62,8 @@ Neither environment is assumed deployed yet.
 
 ## CI
 
-Not implemented yet.
+Implemented in `.github/workflows/ci.yml`: locked dependency installation,
+format checking, lint, strict typing, source compilation and offline unit tests.
 
 ## CD
 
@@ -84,6 +87,19 @@ Final required behavior:
 - CD follows stable manual deployment.
 - Exercise 2 is reference only.
 - Telegram/Trello writes require scoped confirmation.
+- Python 3.13 is the single local/CI/future Lambda runtime target.
+- The official MCP Python SDK is constrained to the current stable 2.x line.
+
+## Risks and limitations
+
+- The current smoke test proves only the project foundation; protocol and runtime
+  behavior begin in later phases.
+- Lambda/API Gateway compatibility with MCP SDK 2.x Streamable HTTP remains a
+  Phase 2 architecture decision.
+
+## Next action
+
+Start Phase 1 from `develop` after the Phase 0 PR is green and merged.
 
 ## Update instructions
 
