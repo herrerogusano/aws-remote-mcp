@@ -77,11 +77,18 @@ Resources:
   RemoteMcpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      Name: !Sub "aws-remote-mcp-${Environment}"
-      Description: Safe synthetic MCP endpoint for the DEV environment.
       StageName: !Ref Environment
       DisableExecuteApiEndpoint: true
       FailOnWarnings: true
+      DefinitionBody:
+        openapi: "3.0.1"
+        info:
+          title: !Sub "aws-remote-mcp-${Environment}"
+          description: Safe synthetic MCP endpoint for the DEV environment.
+          version: "1.0"
+        servers:
+          - url: "/"
+        paths: {}
       Auth:
         EnableIamAuthorizer: true
         DefaultAuthorizer: AWS_IAM
@@ -218,7 +225,6 @@ Resources:
       CodeUri: safety_shutdown/
       Handler: handler.handler
       Role: !GetAtt SafetyShutdownExecutionRole.Arn
-      ReservedConcurrentExecutions: 1
       Environment:
         Variables:
           TARGET_API_ID: !Ref RemoteMcpApi

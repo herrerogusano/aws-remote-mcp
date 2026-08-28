@@ -29,7 +29,7 @@ AWS or external-service dependency.
 
 `develop` maps to DEV and `main` maps to PROD. Feature work branches from and
 returns to `develop`; production changes arrive only through a promotion pull
-request. No project environment is currently deployed.
+request. Only the closed-by-default DEV foundation is currently deployed.
 
 ## D-005 - Transport-independent application core
 

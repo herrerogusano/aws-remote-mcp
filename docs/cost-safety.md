@@ -21,6 +21,8 @@ Outside a test window:
 - the API default endpoint is disabled;
 - AWS IAM authorization is mandatory;
 - MCP Lambda reserved concurrency is zero;
+- the internal shutdown Lambda has no HTTP trigger and can only be invoked by
+  the exact safety topic or dedicated Scheduler role;
 - no recurring alarm or schedule exists;
 - idle Lambda, IAM and SNS resources have no fixed hourly charge.
 
