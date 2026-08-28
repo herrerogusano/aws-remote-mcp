@@ -43,9 +43,9 @@ Do not open the endpoint as part of the closed-stack deployment.
 
 ## Separately approved validation window
 
-The opener refuses to proceed if current-month account spend is at least $0.10.
-It creates an auto-deleting AWS Scheduler deadline and a CloudWatch request alarm
-before enabling anything. The endpoint requires SigV4/AWS IAM authorization.
+The opener performs no billable Cost Explorer query. It creates an auto-deleting
+AWS Scheduler deadline and a CloudWatch request alarm before enabling anything.
+The endpoint requires SigV4/AWS IAM authorization.
 
 ```powershell
 .\scripts\open-dev-window.ps1

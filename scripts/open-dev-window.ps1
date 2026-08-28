@@ -4,8 +4,6 @@ param(
     [int]$WindowMinutes = 5,
     [ValidateRange(1, 20)]
     [int]$RequestThreshold = 20,
-    [ValidateRange(0.01, 1.00)]
-    [decimal]$MaximumCurrentMonthSpendUsd = 0.10,
     [string]$StackName = "aws-remote-mcp-dev",
     [string]$Region = "eu-west-1"
 )
@@ -38,22 +36,6 @@ function Get-StackOutput {
         throw "Missing stack output: $OutputKey"
     }
     return "$value".Trim()
-}
-
-$monthStart = [DateTime]::UtcNow.ToString("yyyy-MM-01")
-$tomorrow = [DateTime]::UtcNow.Date.AddDays(1).ToString("yyyy-MM-dd")
-$spendText = Invoke-AwsCli @(
-    "ce", "get-cost-and-usage",
-    "--time-period", "Start=$monthStart,End=$tomorrow",
-    "--granularity", "MONTHLY",
-    "--metrics", "UnblendedCost",
-    "--query", "ResultsByTime[0].Total.UnblendedCost.Amount",
-    "--output", "text"
-)
-$culture = [Globalization.CultureInfo]::InvariantCulture
-$currentSpend = [decimal]::Parse("$spendText".Trim(), $culture)
-if ($currentSpend -ge $MaximumCurrentMonthSpendUsd) {
-    throw "Fail closed: current month spend is already at or above the configured threshold."
 }
 
 $apiId = Get-StackOutput "DevApiId"

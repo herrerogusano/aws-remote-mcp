@@ -120,9 +120,9 @@ the MCP Lambda has reserved concurrency zero. This temporary infrastructure guar
 is independent from the final MCP OAuth design.
 
 A separately approved test window is at most five minutes. Its opening script
-first checks current-month account spend, installs an AWS-side one-time shutdown,
-and creates a request-volume alarm. Only then does it set Lambda concurrency to
-one and enable the endpoint. The API target is 1 request/second with burst 1;
+installs an AWS-side one-time shutdown and creates a request-volume alarm. Only
+then does it set Lambda concurrency to one and enable the endpoint. The API
+target is 1 request/second with burst 1;
 Lambda is 128 MB with a 10-second timeout. Twenty requests in one minute, the
 five-minute deadline, or the explicit close script invokes the fail-closed path.
 
@@ -131,3 +131,5 @@ spending caps. The existing account-wide monthly budget alerts two email
 subscribers after $0.01 actual spend. Immediate project protection therefore
 comes from keeping the endpoint disabled and compute at zero outside the bounded
 test window rather than claiming that AWS can guarantee a fixed maximum bill.
+Cost Explorer is excluded from runtime and operational scripts because each API
+request costs $0.01 and its data is delayed.

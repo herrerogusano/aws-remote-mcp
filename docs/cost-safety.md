@@ -26,12 +26,11 @@ Outside a test window:
 
 Opening a window requires all of these checks in order:
 
-1. Current-month account spend is below $0.10 according to Cost Explorer.
-2. A one-time AWS-side shutdown is created in a dedicated schedule group and
+1. A one-time AWS-side shutdown is created in a dedicated schedule group and
    auto-deletes afterward.
-3. A temporary alarm is armed at 20 API requests in one minute.
-4. Lambda concurrency becomes one.
-5. Only then is the default API endpoint enabled, for at most five minutes.
+2. A temporary alarm is armed at 20 API requests in one minute.
+3. Lambda concurrency becomes one.
+4. Only then is the default API endpoint enabled, for at most five minutes.
 
 The close path disables the API before stopping Lambda and attempts all cleanup
 actions even if one fails. Manual closure and the independent AWS-side deadline
@@ -50,11 +49,15 @@ earlier. These are estimates, not billing guarantees.
 - AWS WAF and custom domains add fixed monthly cost and are unnecessary while the
   endpoint is disabled outside a five-minute signed test.
 - Provisioned concurrency, VPC and NAT are prohibited because they add idle cost.
+- The Cost Explorer API is not called by scripts or runtime controls: each primary
+  billing-view request costs $0.01 and current-month data can be delayed by about
+  24 hours. Existing AWS Budget email notifications provide the account warning.
 
 ## Sources
 
 - https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-throttling.html
 - https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html
 - https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html
+- https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/
 - https://aws.amazon.com/api-gateway/pricing/
 - https://aws.amazon.com/lambda/pricing/

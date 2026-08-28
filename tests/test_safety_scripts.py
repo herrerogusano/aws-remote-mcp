@@ -17,9 +17,9 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
 
     assert schedule < alarm < concurrency < endpoint
     assert "[ValidateRange(1, 5)]" in script
-    assert "$MaximumCurrentMonthSpendUsd = 0.10" in script
     assert "$RequestThreshold = 20" in script
     assert '"--action-after-completion", "DELETE"' in script
+    assert '"ce", "get-cost-and-usage"' not in script
 
 
 def test_open_window_has_fail_closed_cleanup() -> None:
