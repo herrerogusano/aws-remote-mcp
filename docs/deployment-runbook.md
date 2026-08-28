@@ -63,6 +63,20 @@ Verify again that the API is disabled, concurrency is zero, and the temporary
 traffic alarm no longer exists. Inspect sanitized logs and record cold/warm
 latency without sending credentials or sensitive application payloads.
 
+## API-closed Lambda validation
+
+If the account quota cannot allocate reserved concurrency one, do not weaken
+unrelated Lambda reservations. The narrower validation keeps API Gateway
+disabled, installs an AWS-side five-minute deadline, performs exactly three
+direct synthetic invocations, and restores concurrency zero in `finally`:
+
+```powershell
+.\scripts\validate-direct-lambda.ps1
+```
+
+This proves the deployed Lambda/MCP contract but does not claim to prove the
+API Gateway IAM data path. That remains a separate validation decision.
+
 ## Expected resources
 
 - CloudFormation stack `aws-remote-mcp-dev`;

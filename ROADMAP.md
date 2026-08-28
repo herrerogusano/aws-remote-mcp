@@ -27,6 +27,7 @@ MCP client
 - Lambda/API Gateway v2 adaptation and closed-by-default DEV infrastructure.
 - Cost guardrails, temporary validation window and automatic shutdown path.
 - Verified closed DEV deployment in `eu-west-1`.
+- Three-call synthetic Lambda validation with the API kept disabled.
 
 ## Next milestones
 
