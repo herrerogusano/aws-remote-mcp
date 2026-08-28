@@ -148,17 +148,18 @@ the API Gateway IAM path.
 
 ## D-018 - Cognito with a pre-registered official Inspector client
 
-Use Cognito Lite as the first authorization server profile and the official MCP
+Use Cognito Plus as the first authorization server profile and the official MCP
 Inspector CLI/TUI as the controlled validation client. The client is public,
 pre-registered to one exact loopback callback, and uses authorization code with
 S256 PKCE. Tokens require the `aws-remote-mcp/use` scope and the exact MCP URI as
 their audience through Cognito resource binding.
 
 Disable self-registration and message-based authentication. Require TOTP, keep
-access tokens at five minutes, limit refresh tokens to one day with revocation,
-use the free Cognito domain and exclude paid threat protection. Refresh-token
-rotation requires the paid Essentials tier, so it is deliberately omitted from
-the Lite pool. Cognito's lack of CIMD and DCR is an explicit interoperability
-boundary; never add a custom registration shim. Re-evaluate a native MCP
-authorization provider if a future client cannot
+access tokens at five minutes, rotate one-day refresh tokens with no grace reuse
+period, use the free Cognito domain and enforce Plus threat protection. Plus has
+no free tier, but its $0.02 per direct MAU price is bounded to $0.02 per month by
+the administrator-only single-user project policy; zero users cost $0.
+Cognito's lack of CIMD and DCR is an explicit interoperability boundary; never
+add a custom registration shim. Re-evaluate a native MCP authorization provider
+if a future client cannot
 accept pre-registration.

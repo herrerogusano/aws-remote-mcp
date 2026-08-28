@@ -46,13 +46,14 @@ pool, one resource server, one public app client and one Cognito-hosted domain.
 Verify through CloudFormation and Cognito control-plane reads:
 
 - all four resources are complete;
-- tier is `LITE` and deletion protection is `ACTIVE`;
+- tier is `PLUS`, threat protection is `ENFORCED` and deletion protection is
+  `ACTIVE`;
 - self-registration is disabled;
 - only software-token MFA is enabled and required;
 - app client has no secret, only code flow and the exact callback;
 - access-token validity is five minutes;
-- refresh-token validity is one day, token revocation is enabled and paid-tier
-  refresh-token rotation is absent;
+- refresh-token validity is one day, token revocation is enabled and rotation
+  has no grace reuse period;
 - only `aws-remote-mcp/use` is an allowed custom scope;
 - no users exist;
 - the MCP API is still disabled and Lambda concurrency is still zero.
@@ -62,13 +63,15 @@ deployment.
 
 ## Cost boundary
 
-Cognito Lite has no fixed project charge and includes 10,000 direct/social MAU
-per month. An empty user pool has no active user. The future validation profile
-allows only administrator-created users, and project policy permits one.
+Cognito Plus has no minimum fee and costs $0.02 per direct/social MAU. An empty
+user pool has no active user. The future validation profile allows only
+administrator-created users, and project policy permits one, bounding the tier
+charge to $0.02 in each month that user is active.
 
 The template excludes SMS, email OTP, M2M tokens, custom domains, Lambda
-triggers, WAF and paid threat protection. AWS Budgets remains a warning rather
-than a guaranteed spending cap.
+triggers, WAF and request-priced add-ons. Enforced Plus threat protection is the
+only paid feature. AWS Budgets remains a warning rather than a guaranteed
+spending cap.
 
 ## Rollback and retention
 

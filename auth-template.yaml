@@ -32,8 +32,10 @@ Resources:
     UpdateReplacePolicy: Retain
     Properties:
       UserPoolName: !Sub "aws-remote-mcp-auth-${Environment}"
-      UserPoolTier: LITE
+      UserPoolTier: PLUS
       DeletionProtection: ACTIVE
+      UserPoolAddOns:
+        AdvancedSecurityMode: ENFORCED
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
       UsernameConfiguration:
@@ -91,6 +93,10 @@ Resources:
         RefreshToken: days
       AuthSessionValidity: 3
       EnableTokenRevocation: true
+      ExplicitAuthFlows: []
+      RefreshTokenRotation:
+        Feature: ENABLED
+        RetryGracePeriodSeconds: 0
 
   AuthDomain:
     Type: AWS::Cognito::UserPoolDomain

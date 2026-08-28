@@ -14,9 +14,10 @@ API remained disabled. All three bounded synthetic calls succeeded and the
 function was returned to reserved concurrency zero immediately afterward.
 
 The production-shaped OAuth foundation was deployed and verified on 2026-08-28:
-Cognito Lite with a public pre-registered MCP Inspector client, PKCE, audience
-binding, five-minute access tokens and mandatory TOTP. The pool has zero users,
-and it is not connected to the still-closed API route.
+Cognito Plus with enforced threat protection, a public pre-registered MCP
+Inspector client, PKCE, audience binding, five-minute access tokens, refresh
+rotation and mandatory TOTP. The pool has zero users, and it is not connected
+to the still-closed API route.
 
 ## Deployment posture
 
@@ -34,7 +35,8 @@ and it is not connected to the still-closed API route.
   memory used out of 128 MB.
 - PROD and continuous deployment do not exist.
 - The separate Cognito auth stack has four complete resources, deletion
-  protection, administrator-only user creation and zero users.
+  protection, enforced threat protection, administrator-only user creation and
+  zero users.
 
 ## Account cost posture
 
@@ -42,6 +44,10 @@ The AWS account has a monthly $1 budget with two email notifications from $0.01
 actual spend. AWS provides no guaranteed hard spending cap. The project therefore
 uses disabled compute/endpoints and brief independently closed test windows as
 its primary cost controls.
+
+Cognito Plus costs $0.02 per direct active user with no minimum fee. The empty
+pool costs $0; administrator-only creation and the one-user project policy bound
+the future tier charge to $0.02 per active month.
 
 ## Next decision
 

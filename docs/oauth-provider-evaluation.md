@@ -4,7 +4,7 @@ Verified: 2026-08-28
 
 ## Decision
 
-Use Amazon Cognito Lite as the first production-shaped authorization server and
+Use Amazon Cognito Plus as the first production-shaped authorization server and
 the official MCP Inspector CLI/TUI as the pre-registered validation client.
 
 This is a controlled-client profile, not a claim of universal zero-configuration
@@ -32,27 +32,28 @@ Cognito issuer/audience and this scope so an ID token cannot satisfy the route.
 
 ## Cost and abuse posture
 
-- Cognito Lite and Essentials include 10,000 direct/social MAU per month in the
-  indefinite free tier.
+- Cognito Plus has no free tier and costs $0.02 per direct/social MAU. With
+  administrator-only creation and a one-user project policy, this is bounded to
+  $0.02 in each month that the user is active; the empty pool costs $0.
 - Self-registration is disabled; only an administrator can create the single
   validation user.
-- No SMS, email OTP, custom domain, WAF, Lambda trigger, M2M client, threat
-  protection or Plus tier is configured.
+- No SMS, email OTP, custom domain, WAF, Lambda trigger or M2M client is
+  configured. Plus threat protection is enforced without log export.
 - The public client has no secret. It uses one exact loopback callback and PKCE.
-- Access and ID tokens expire after five minutes. The refresh token expires
-  after one day and supports revocation. Rotation is unavailable in the Lite
-  tier and is deliberately omitted to avoid a paid tier.
+- Access and ID tokens expire after five minutes. The one-day refresh token
+  rotates with no grace reuse period and supports revocation.
 - TOTP MFA is mandatory and doesn't create per-message charges.
 
-AWS doesn't provide a hard Cognito spending cap. Restricting the number of users
-and excluding message-based and paid add-ons bounds the practical project path,
-while the existing account budget remains an independent warning.
+AWS doesn't provide a hard Cognito spending cap. Restricting creation to an
+administrator and the project to one user bounds the MAU charge, while excluding
+message-based and request-priced features removes per-attempt costs. The
+existing account budget remains an independent warning.
 
 ## Alternatives considered
 
 | Provider | MCP registration | Advantages | Reason not selected first |
 | --- | --- | --- | --- |
-| Cognito | Pre-registration | AWS-native, PKCE, resource binding, short JWTs, free tier | Controlled clients only; CIMD/DCR absent |
+| Cognito | Pre-registration | AWS-native, PKCE, resource binding, short JWTs, enforced threat protection | Controlled clients only; CIMD/DCR absent |
 | Descope | CIMD, DCR, pre-registration | Purpose-built MCP authorization and consent | External control plane and management credential |
 | Stytch | CIMD/DCR and pre-registration | Full Connected Apps support and free 10k MAU | Requires an additional hosted consent application |
 | WorkOS | CIMD/DCR | Managed MCP-capable authorization and large free AuthKit tier | External account and production billing setup |
