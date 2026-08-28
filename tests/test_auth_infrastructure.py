@@ -22,17 +22,16 @@ def test_auth_template_is_dev_only_and_not_implicitly_deployable() -> None:
     assert "CognitoDomainPrefix=aws-remote-mcp" not in template
 
 
-def test_user_pool_prevents_unbounded_or_billable_sign_up_paths() -> None:
+def test_user_pool_prevents_unbounded_sign_up_and_enforces_threat_protection() -> None:
     template = template_text()
 
-    assert "UserPoolTier: LITE" in template
+    assert "UserPoolTier: PLUS" in template
     assert "DeletionProtection: ACTIVE" in template
+    assert "AdvancedSecurityMode: ENFORCED" in template
     assert "DeletionPolicy: Retain" in template
     assert "AllowAdminCreateUserOnly: true" in template
     assert 'MfaConfiguration: "ON"' in template
     assert "SOFTWARE_TOKEN_MFA" in template
-    assert "UserPoolAddOns" not in template
-    assert "PLUS" not in template
     assert "SMS_MFA" not in template
     assert "EMAIL_OTP" not in template
     assert "CustomDomainConfig" not in template
@@ -51,7 +50,11 @@ def test_inspector_client_is_public_pkce_only_and_short_lived() -> None:
     assert "AccessTokenValidity: 5" in template
     assert "RefreshTokenValidity: 1" in template
     assert "EnableTokenRevocation: true" in template
-    assert "RefreshTokenRotation" not in template
+    assert "ExplicitAuthFlows: []" in template
+    assert "ALLOW_" not in template
+    assert "RefreshTokenRotation" in template
+    assert "Feature: ENABLED" in template
+    assert "RetryGracePeriodSeconds: 0" in template
 
 
 def test_auth_template_has_only_the_expected_resources() -> None:
