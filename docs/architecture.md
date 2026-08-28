@@ -33,3 +33,27 @@ scoped consent, request counters, partial failures, and safe error translation.
 
 The remote design adds distinct caller authorization, Lambda IAM, downstream
 credentials, per-tool structured audit records, and API Gateway throttling.
+
+## Transport-independent core
+
+```text
+future MCP adapter
+  -> ToolService
+  -> operation registry / confirmation guard / normalized models
+  -> adapter protocols
+  -> offline fakes now, real integrations in later phases
+```
+
+The central registry allows automatic execution only for operations classified
+as `free_verified_read`; missing operations fail as `unknown`. Other supported
+classifications are `controlled_billable`, `write`, and `sensitive_read`.
+
+External writes use an opaque confirmation token backed by an in-memory record
+that binds caller fingerprint, action, canonical payload digest, expiry, and
+single use. Confirmation is consumed before calling a downstream adapter so an
+ambiguous failure cannot be blindly retried. Durable/distributed confirmation
+storage is intentionally deferred until the deployment architecture requires it.
+
+Application results have a common status, data, warnings, sanitized errors,
+counters, and optional confirmation metadata. Adapter output is size-bounded,
+and every execution permits at most one external-write attempt.
