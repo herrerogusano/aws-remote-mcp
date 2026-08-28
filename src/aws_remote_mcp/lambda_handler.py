@@ -36,7 +36,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     environment = _required_environment("APP_ENVIRONMENT")
     if environment != "dev":
-        raise RuntimeError("Phase 4 Lambda is restricted to APP_ENVIRONMENT=dev.")
+        raise RuntimeError(
+            "This Lambda deployment is restricted to APP_ENVIRONMENT=dev."
+        )
     allowed_host = _api_gateway_host(event)
     app = create_app(
         allowed_hosts=(allowed_host,),

@@ -33,7 +33,7 @@ middleware tests.
 
 ## Preferred AWS candidate
 
-The candidate for Phase 5 is:
+The preferred production candidate is:
 
 ```text
 MCP client
@@ -58,16 +58,16 @@ advertise Client ID Metadata Document support or a standard DCR registration
 endpoint.
 
 Therefore Cognito is compatible only with a target MCP client that can use a
-pre-registered public client ID and exact callback URI. Phase 5 must test the
-actual client before Gate B. If the target client requires CIMD or DCR, stop and
-compare authorization-server alternatives instead of inventing a registration
-protocol or weakening authorization.
+pre-registered public client ID and exact callback URI. The actual client must
+be tested before authorization infrastructure is created. If it requires CIMD
+or DCR, compare authorization-server alternatives instead of inventing a
+registration protocol or weakening authorization.
 
 ## Deployment boundary
 
-This phase creates no authorization server and no AWS resource. The normal local
-runner remains loopback-only and unprotected for development. The separately
-constructed protected app is the executable contract for later deployment.
+This contract creates no authorization server and no AWS resource. The normal
+local runner remains loopback-only and unprotected for development. The
+separately constructed protected app is the executable contract for deployment.
 
 ## Sources
 

@@ -114,7 +114,7 @@ def create_server(
         SERVER_NAME,
         version=SERVER_VERSION,
         description="Safe local precursor to an authenticated AWS remote MCP server.",
-        instructions="All integrations are synthetic or preview-only in this phase.",
+        instructions="All current integrations are synthetic or preview-only.",
         auth=auth_settings,
         token_verifier=token_verifier,
     )

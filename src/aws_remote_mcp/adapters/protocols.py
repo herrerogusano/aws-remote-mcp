@@ -1,4 +1,4 @@
-"""Ports implemented by fake adapters now and real adapters in later phases."""
+"""Ports implemented by offline fakes and later by reviewed live adapters."""
 
 from collections.abc import Mapping
 from typing import Protocol

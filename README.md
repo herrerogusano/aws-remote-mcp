@@ -1,7 +1,7 @@
 # AWS Remote MCP
 
-Exercise 5 of an AWS developer portfolio: a production-shaped, authenticated
-remote Model Context Protocol server designed for AWS Lambda and API Gateway.
+A production-shaped, authenticated remote Model Context Protocol server designed
+for AWS Lambda and API Gateway.
 
 The project currently exposes a local-only MCP server over current Streamable
 HTTP. All AWS data is synthetic and Telegram/Trello tools are preview-only; it
@@ -41,26 +41,32 @@ Current-protocol clients can discover and call:
 - `preparar_mensaje_telegram`
 - `preparar_tarjeta_trello`
 
-No execute/send/create tool is exposed in this phase.
+No execute/send/create tool is exposed in the current development build.
 
 ## Branch and environment model
 
 ```text
-phase/* -> develop -> DEV
+feature/* -> develop -> DEV
               |
               +---- promotion PR -> main -> PROD
 ```
 
-The environments are mandatory, but no AWS environment exists yet. Deployment
-actions remain subject to the approval gates in `docs/plan/GATES.md`.
+The environments are mandatory, but no project AWS environment exists yet.
+Infrastructure changes require the review described in
+`docs/operational-approvals.md`.
+
+The prepared DEV stack is closed by default: its execute-api endpoint is disabled,
+the route requires AWS IAM, and MCP Lambda concurrency is zero. A separately
+approved test window is limited to five minutes with an independent scheduled
+shutdown and request-volume tripwire. See `docs/cost-safety.md`.
 
 ## Safety baseline
 
 - No live AWS, Telegram, Trello, OAuth, or paid-service calls in normal CI.
 - No secrets or persistent credentials in source control.
-- No AWS deployment before Gate A approval.
+- No AWS deployment without explicit infrastructure approval.
 - Future tool calls must use structured audit logging and bounded traffic.
 
-See `PLAN.md` and `docs/plan/PROGRESS.md` for the full roadmap and current state.
-The prepared DEV deployment procedure is in `docs/deployment-runbook.md`; Gate A
-approval is mandatory before executing it.
+See `ROADMAP.md` and `docs/project-status.md` for the roadmap and current state.
+The prepared DEV procedure is in `docs/deployment-runbook.md`; explicit approval
+is mandatory before executing it.

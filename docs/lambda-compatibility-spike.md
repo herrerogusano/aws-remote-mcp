@@ -28,7 +28,7 @@ Mangum adapts ASGI directly to API Gateway HTTP API v2/Lambda events and support
 ASGI lifespan. It is a small Python dependency and keeps the official MCP ASGI
 application unchanged. The main risk is lifespan startup/shutdown per Lambda
 invocation and its interaction with the SDK session manager; stateless mode
-reduces that risk but Phase 4 must verify repeated warm invocations.
+reduces that risk, but repeated warm invocations still require verification.
 
 ### AWS Lambda Web Adapter
 
@@ -45,7 +45,7 @@ count, but it would duplicate header, body, lifespan, binary response and error
 translation semantics. A bridge built against SDK internals would also be brittle
 and risks creating a non-compliant MCP-like endpoint.
 
-## Phase 4 result
+## Result
 
 Mangum 0.22.0 correctly translates the HTTP API v2 event and response contract.
 An explicit contract test validates:
@@ -63,7 +63,7 @@ adapter therefore constructs a fresh ASGI app and Mangum adapter per invocation,
 keeps `lifespan="auto"`, and strips the `/dev` API stage before routing `/mcp`.
 Two consecutive synthetic events both succeed and expose only the diagnostic and
 synthetic AWS tools. This keeps the official SDK lifecycle intact at the cost of
-small per-request initialization overhead, which will be measured after Gate A.
+small per-request initialization overhead, which will be measured in DEV.
 
 The Lambda artifact is built for Linux x86_64 using SAM's `python-uv` builder.
 It is approximately 30.5 MB uncompressed and contains no Windows-only runtime
