@@ -31,8 +31,8 @@ MCP client
 
 ## Next milestones
 
-1. Validate one signed, five-minute synthetic remote session.
-2. Select and prove a production-compatible OAuth/OIDC provider and client flow.
+1. Deploy the gated Cognito DEV authorization foundation and create one user.
+2. Replace temporary IAM with JWT authorization and validate MCP Inspector.
 3. Add least-privilege AWS inventory collectors.
 4. Add confirmed Telegram and Trello actions with separate credentials.
 5. Complete structured audit logging, fault tests and cost review.
