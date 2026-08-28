@@ -1,15 +1,16 @@
 # Cognito DEV authorization runbook
 
 The authentication foundation has a separate approval from the closed MCP
-stack. This runbook does not open API Gateway, change Lambda concurrency, create
-a user or handle a password.
+stack. It was first deployed on 2026-08-28. This runbook does not open API
+Gateway, change Lambda concurrency, create a user or handle a password.
 
 ## Preconditions
 
 - `aws-remote-mcp-dev` is `CREATE_COMPLETE`;
 - its API default endpoint is disabled;
 - MCP Lambda reserved concurrency is zero;
-- `aws-remote-mcp-auth-dev` doesn't exist;
+- for an initial create, `aws-remote-mcp-auth-dev` doesn't exist; for an update,
+  it is `CREATE_COMPLETE` or `UPDATE_COMPLETE`;
 - the selected Cognito prefix is still available;
 - `auth-template.yaml` passes local and AWS template validation.
 
@@ -30,7 +31,7 @@ aws cloudformation deploy `
   --region eu-west-1 `
   --parameter-overrides `
     Environment=dev `
-    CognitoDomainPrefix=aws-remote-mcp-dev-hg `
+    CognitoDomainPrefix=remote-mcp-dev-hg `
     McpResourceUri=$mcpResource `
     InspectorCallbackUrl=http://127.0.0.1:6276/oauth/callback `
   --no-fail-on-empty-changeset `
@@ -50,6 +51,8 @@ Verify through CloudFormation and Cognito control-plane reads:
 - only software-token MFA is enabled and required;
 - app client has no secret, only code flow and the exact callback;
 - access-token validity is five minutes;
+- refresh-token validity is one day, token revocation is enabled and paid-tier
+  refresh-token rotation is absent;
 - only `aws-remote-mcp/use` is an allowed custom scope;
 - no users exist;
 - the MCP API is still disabled and Lambda concurrency is still zero.

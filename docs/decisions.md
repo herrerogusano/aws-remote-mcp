@@ -155,8 +155,10 @@ S256 PKCE. Tokens require the `aws-remote-mcp/use` scope and the exact MCP URI a
 their audience through Cognito resource binding.
 
 Disable self-registration and message-based authentication. Require TOTP, keep
-access tokens at five minutes, rotate one-day refresh tokens, use the free
-Cognito domain and exclude paid threat protection. Cognito's lack of CIMD and
-DCR is an explicit interoperability boundary; never add a custom registration
-shim. Re-evaluate a native MCP authorization provider if a future client cannot
+access tokens at five minutes, limit refresh tokens to one day with revocation,
+use the free Cognito domain and exclude paid threat protection. Refresh-token
+rotation requires the paid Essentials tier, so it is deliberately omitted from
+the Lite pool. Cognito's lack of CIMD and DCR is an explicit interoperability
+boundary; never add a custom registration shim. Re-evaluate a native MCP
+authorization provider if a future client cannot
 accept pre-registration.

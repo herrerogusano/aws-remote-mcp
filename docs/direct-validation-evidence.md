@@ -47,7 +47,7 @@ Small CloudWatch log ingestion and storage are separate.
 - automatic-close schedule count: `0`.
 
 This evidence validates the deployed Lambda/MCP boundary. It deliberately does
-not claim that the API Gateway IAM data path has been exercised.
+not claim that the API Gateway IAM data path has been validated.
 
 ## Pricing source
 

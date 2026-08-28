@@ -89,8 +89,9 @@ API Gateway IAM data path. That remains a separate validation decision.
 - deployment artifacts in the existing SAM-managed regional S3 bucket.
 
 Only during a validation window, one auto-deleting Scheduler schedule and one
-temporary CloudWatch alarm also exist. There is no Cognito, VPC, NAT gateway,
-provisioned concurrency, database, queue, secret, custom domain, WAF or PROD.
+temporary CloudWatch alarm also exist. This app stack contains no Cognito, VPC,
+NAT gateway, provisioned concurrency, database, queue, secret, custom domain,
+WAF or PROD; Cognito is isolated in the separate zero-user auth stack.
 
 ## Rollback
 

@@ -52,8 +52,8 @@ feature/* -> develop -> DEV
               +---- promotion PR -> main -> PROD
 ```
 
-The environments are mandatory, but no project AWS environment exists yet.
-Infrastructure changes require the review described in
+The DEV environment exists in AWS and remains closed by default; PROD does not
+exist. Infrastructure changes require the review described in
 `docs/operational-approvals.md`.
 
 The prepared DEV stack is closed by default: its execute-api endpoint is disabled,
@@ -64,9 +64,10 @@ shutdown and request-volume tripwire. See `docs/cost-safety.md`.
 The deployed Lambda contract has also been validated directly while the API
 remained disabled. See `docs/direct-validation-evidence.md`.
 
-The selected OAuth/OIDC profile and its still-gated Cognito deployment are
-documented in `docs/oauth-provider-evaluation.md` and
-`docs/auth-deployment-runbook.md`.
+The selected OAuth/OIDC profile and its deployed zero-user Cognito foundation
+are documented in `docs/oauth-provider-evaluation.md` and
+`docs/auth-deployment-runbook.md`. User creation, JWT route integration and any
+remote opening remain separate gated actions.
 
 ## Safety baseline
 
