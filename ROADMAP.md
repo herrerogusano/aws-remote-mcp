@@ -26,17 +26,17 @@ MCP client
 - OAuth resource-server contract with offline JWT verification tests.
 - Lambda/API Gateway v2 adaptation and closed-by-default DEV infrastructure.
 - Cost guardrails, temporary validation window and automatic shutdown path.
+- Verified closed DEV deployment in `eu-west-1`.
 
 ## Next milestones
 
-1. Deploy the closed DEV foundation after explicit infrastructure approval.
-2. Validate one signed, five-minute synthetic remote session.
-3. Select and prove a production-compatible OAuth/OIDC provider and client flow.
-4. Add least-privilege AWS inventory collectors.
-5. Add confirmed Telegram and Trello actions with separate credentials.
-6. Complete structured audit logging, fault tests and cost review.
-7. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
-8. Publish architecture, threat model, demo and operating runbooks.
+1. Validate one signed, five-minute synthetic remote session.
+2. Select and prove a production-compatible OAuth/OIDC provider and client flow.
+3. Add least-privilege AWS inventory collectors.
+4. Add confirmed Telegram and Trello actions with separate credentials.
+5. Complete structured audit logging, fault tests and cost review.
+6. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
+7. Publish architecture, threat model, demo and operating runbooks.
 
 ## Success criteria
 

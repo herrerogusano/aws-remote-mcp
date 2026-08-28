@@ -5,17 +5,21 @@ Region: `eu-west-1`
 ## Current state
 
 The application core, local Streamable HTTP transport, authorization contract
-and closed-by-default AWS foundation are implemented. The open pull request is
-green locally and awaits final CI after cost-safety hardening. No project stack,
-remote endpoint or external integration has been deployed.
+and closed-by-default AWS foundation are implemented. The DEV stack was deployed
+and verified in `eu-west-1` on 2026-08-28. No remote validation session or
+external integration has been activated.
 
 ## Deployment posture
 
-- DEV stack prepared; deployment approval pending.
-- Default API endpoint disabled.
-- Temporary AWS IAM protection configured.
-- MCP Lambda concurrency zero outside an approved test window.
+- DEV stack deployed with every CloudFormation resource complete.
+- Default API endpoint verified disabled in AWS.
+- The only route is `POST /mcp`, verified with AWS IAM authorization.
+- MCP Lambda verified at reserved concurrency zero, 128 MB and 10-second timeout.
+- Stage throttling verified at rate 1 request/second and burst 1.
 - Five-minute signed validation window has scheduled and volume-based shutdown.
+- No temporary alarm or automatic-close schedule is active while closed.
+- All three execution roles have only inline, resource-specific policies and no
+  attached managed policy.
 - PROD and continuous deployment do not exist.
 
 ## Account cost posture
@@ -27,6 +31,5 @@ its primary cost controls.
 
 ## Next decision
 
-Review the exact closed-stack resources, IAM and rollback. If approved, deploy
-the closed DEV foundation only. Opening a validation window is a separate
-decision after the closed state is verified in AWS.
+Decide whether to authorize one signed, five-minute synthetic validation window.
+That authorization remains separate from the completed closed deployment.

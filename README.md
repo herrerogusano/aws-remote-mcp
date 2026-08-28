@@ -3,9 +3,10 @@
 A production-shaped, authenticated remote Model Context Protocol server designed
 for AWS Lambda and API Gateway.
 
-The project currently exposes a local-only MCP server over current Streamable
-HTTP. All AWS data is synthetic and Telegram/Trello tools are preview-only; it
-does not deploy resources or call AWS or external services yet.
+The project exposes a local MCP server over current Streamable HTTP and has a
+closed-by-default DEV foundation deployed in AWS. All application AWS data is
+synthetic and Telegram/Trello tools are preview-only; the remote endpoint and
+its compute remain disabled outside a separately approved validation window.
 
 ## Development
 

@@ -17,7 +17,7 @@ def test_template_is_dev_only_and_bounded() -> None:
     assert "MemorySize: 128" in template
     assert "Timeout: 10" in template
     assert "ReservedConcurrentExecutions: 0" in template
-    assert "ReservedConcurrentExecutions: 1" in template
+    assert template.count("ReservedConcurrentExecutions:") == 1
     assert "ThrottlingBurstLimit: 1" in template
     assert "ThrottlingRateLimit: 1" in template
     assert template.count("RetentionInDays: 7") == 3
@@ -27,6 +27,10 @@ def test_endpoint_is_closed_and_iam_authenticated_by_default() -> None:
     template = template_text()
 
     assert "DisableExecuteApiEndpoint: true" in template
+    assert "FailOnWarnings: true" in template
+    assert 'openapi: "3.0.1"' in template
+    assert 'url: "/"' in template
+    assert "paths: {}" in template
     assert "EnableIamAuthorizer: true" in template
     assert "DefaultAuthorizer: AWS_IAM" in template
 
