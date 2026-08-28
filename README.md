@@ -64,6 +64,10 @@ shutdown and request-volume tripwire. See `docs/cost-safety.md`.
 The deployed Lambda contract has also been validated directly while the API
 remained disabled. See `docs/direct-validation-evidence.md`.
 
+The selected OAuth/OIDC profile and its still-gated Cognito deployment are
+documented in `docs/oauth-provider-evaluation.md` and
+`docs/auth-deployment-runbook.md`.
+
 ## Safety baseline
 
 - No live AWS, Telegram, Trello, OAuth, or paid-service calls in normal CI.

@@ -13,6 +13,11 @@ The deployed Lambda/MCP contract was validated directly on 2026-08-28 while the
 API remained disabled. All three bounded synthetic calls succeeded and the
 function was returned to reserved concurrency zero immediately afterward.
 
+The production-shaped OAuth profile is now selected and prepared locally:
+Cognito Lite with a public pre-registered MCP Inspector client, PKCE, audience
+binding, five-minute access tokens and mandatory TOTP. No Cognito resource or
+user has been created.
+
 ## Deployment posture
 
 - DEV stack deployed with every CloudFormation resource complete.
@@ -38,6 +43,7 @@ its primary cost controls.
 
 ## Next decision
 
-Decide whether the API Gateway IAM data path should remain deferred or be tested
-later after a safe Lambda quota strategy is available. Production OAuth remains
-the next authorization milestone.
+Review the separate Cognito template, IAM-free user-pool resources, cost posture
+and retained rollback behavior. Deploying it and creating one administrator-only
+user require explicit authorization. API Gateway remains IAM-protected and
+disabled until a later gate.

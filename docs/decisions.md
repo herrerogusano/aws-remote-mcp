@@ -145,3 +145,18 @@ invocations while API Gateway remains disabled. Install an independent
 five-minute shutdown first, remove concurrency zero only for the calls, and
 restore it in `finally`. Treat this as Lambda boundary evidence, not evidence for
 the API Gateway IAM path.
+
+## D-018 - Cognito with a pre-registered official Inspector client
+
+Use Cognito Lite as the first authorization server profile and the official MCP
+Inspector CLI/TUI as the controlled validation client. The client is public,
+pre-registered to one exact loopback callback, and uses authorization code with
+S256 PKCE. Tokens require the `aws-remote-mcp/use` scope and the exact MCP URI as
+their audience through Cognito resource binding.
+
+Disable self-registration and message-based authentication. Require TOTP, keep
+access tokens at five minutes, rotate one-day refresh tokens, use the free
+Cognito domain and exclude paid threat protection. Cognito's lack of CIMD and
+DCR is an explicit interoperability boundary; never add a custom registration
+shim. Re-evaluate a native MCP authorization provider if a future client cannot
+accept pre-registration.

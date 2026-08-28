@@ -31,12 +31,12 @@ It minimizes retained claims. It is a test model, not the planned production key
 retrieval mechanism. `StaticTokenVerifier` is a deterministic fake for HTTP
 middleware tests.
 
-## Preferred AWS candidate
+## Selected controlled-client profile
 
-The preferred production candidate is:
+The selected first production-shaped profile is:
 
 ```text
-MCP client
+MCP Inspector CLI/TUI with a pre-registered public client ID
   -> Cognito authorization code + PKCE
   -> audience-bound access token with aws-remote-mcp/use
   -> API Gateway HTTP API JWT authorizer
@@ -49,6 +49,11 @@ The design must require a scope so ID tokens are not accepted accidentally.
 Cognito's resource binding can place the requested MCP resource URI into access
 token `aud` for user authorization-code flows.
 
+The app client has no secret, uses only the authorization-code flow, and permits
+the Inspector native callback `http://127.0.0.1:6276/oauth/callback`. Access
+tokens last five minutes and must contain both the endpoint audience and
+`aws-remote-mcp/use`.
+
 ## Client registration limitation
 
 The current MCP priority is pre-registration, Client ID Metadata Documents, then
@@ -58,10 +63,13 @@ advertise Client ID Metadata Document support or a standard DCR registration
 endpoint.
 
 Therefore Cognito is compatible only with a target MCP client that can use a
-pre-registered public client ID and exact callback URI. The actual client must
-be tested before authorization infrastructure is created. If it requires CIMD
+pre-registered public client ID and exact callback URI. The official MCP
+Inspector supports this configuration. If another target client requires CIMD
 or DCR, compare authorization-server alternatives instead of inventing a
 registration protocol or weakening authorization.
+
+The configuration contract is prepared in `auth-template.yaml`; no authorization
+resource or user has been created yet.
 
 ## Deployment boundary
 
