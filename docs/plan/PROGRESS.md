@@ -18,7 +18,7 @@ both long-lived branches. No AWS resources or external integrations exist.
 
 - [x] Phase 0 — Bootstrap + CI
 - [x] Phase 1 — Core tool architecture
-- [ ] Phase 2 — Local Streamable HTTP
+- [x] Phase 2 — Local Streamable HTTP
 - [ ] Phase 3 — Authorization contract
 - [ ] Phase 4 — First AWS remote deployment
 - [ ] Phase 5 — AWS authentication
@@ -33,7 +33,7 @@ both long-lived branches. No AWS resources or external integrations exist.
 
 ## Active phase
 
-Phase 2 — Local Streamable HTTP
+Phase 3 — Authorization contract
 
 ## Approved gates
 
@@ -93,6 +93,10 @@ Final required behavior:
 - AWS operations fail closed unless registered as `free_verified_read`.
 - External confirmations bind caller/action/payload/expiry and are single-use.
 - Tool results, sanitized errors, counters and response-size limits are normalized.
+- Local MCP uses current 2026-07-28 Streamable HTTP with stateless JSON responses.
+- The local server binds to loopback and enforces Host, Origin and 64 KiB body limits.
+- Mangum is the preferred Phase 4 ASGI/Lambda adapter spike; Lambda Web Adapter is
+  the fallback before a custom bridge.
 
 ## Risks and limitations
 
@@ -100,13 +104,15 @@ Final required behavior:
   exist in the core phase.
 - Confirmation records are process-local until the deployment design establishes
   whether shared durable state is required.
+- Authentication is intentionally absent until Phase 3; the HTTP endpoint is
+  local-only in Phase 2.
 - Lambda/API Gateway compatibility with MCP SDK 2.x Streamable HTTP remains a
   Phase 2 architecture decision.
 
 ## Next action
 
-Merge the green Phase 1 PR into `develop`, then implement local MCP Streamable
-HTTP in Phase 2.
+Merge the green Phase 2 PR into `develop`, then implement the offline
+authorization/resource-server contract in Phase 3.
 
 ## Update instructions
 

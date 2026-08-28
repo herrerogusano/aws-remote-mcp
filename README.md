@@ -3,9 +3,9 @@
 Exercise 5 of an AWS developer portfolio: a production-shaped, authenticated
 remote Model Context Protocol server designed for AWS Lambda and API Gateway.
 
-The project is currently in its foundation phase. It has a reproducible Python
-environment and CI, but it does not deploy resources or call AWS or external
-services yet.
+The project currently exposes a local-only MCP server over current Streamable
+HTTP. All AWS data is synthetic and Telegram/Trello tools are preview-only; it
+does not deploy resources or call AWS or external services yet.
 
 ## Development
 
@@ -23,6 +23,23 @@ uv run ruff check .
 uv run mypy
 uv run pytest
 ```
+
+Run the local server:
+
+```bash
+uv run aws-remote-mcp
+```
+
+It binds only to `127.0.0.1:8000` and exposes the single MCP endpoint at
+`http://127.0.0.1:8000/mcp`. The transport is stateless and uses JSON responses.
+Current-protocol clients can discover and call:
+
+- `diagnostico`
+- `listar_recursos_aws_sintetico`
+- `preparar_mensaje_telegram`
+- `preparar_tarjeta_trello`
+
+No execute/send/create tool is exposed in this phase.
 
 ## Branch and environment model
 
