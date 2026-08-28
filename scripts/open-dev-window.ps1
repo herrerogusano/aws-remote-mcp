@@ -47,11 +47,7 @@ $topicArn = Get-StackOutput "SafetyShutdownTopicArn"
 
 $closeAt = [DateTime]::UtcNow.AddMinutes($WindowMinutes)
 $scheduleName = "aws-remote-mcp-dev-auto-close-$($closeAt.ToString('yyyyMMddHHmmss'))"
-$target = @{
-    Arn     = $shutdownArn
-    RoleArn = $schedulerRoleArn
-    Input   = "{}"
-} | ConvertTo-Json -Compress
+$target = "Arn=$shutdownArn,RoleArn=$schedulerRoleArn,Input='{}'"
 
 # The independent AWS-side closure is installed before either execution surface opens.
 Invoke-AwsCli @(
@@ -94,13 +90,15 @@ try {
     Invoke-AwsCli @(
         "apigatewayv2", "update-api",
         "--api-id", $apiId,
-        "--disable-execute-api-endpoint", "false",
+        "--no-disable-execute-api-endpoint",
         "--region", $Region
     ) | Out-Null
 }
 catch {
-    & aws apigatewayv2 update-api --api-id $apiId --disable-execute-api-endpoint true --region $Region | Out-Null
+    & aws apigatewayv2 update-api --api-id $apiId --disable-execute-api-endpoint --region $Region | Out-Null
     & aws lambda put-function-concurrency --function-name $functionName --reserved-concurrent-executions 0 --region $Region | Out-Null
+    & aws cloudwatch delete-alarms --alarm-names $alarmName --region $Region | Out-Null
+    & aws scheduler delete-schedule --name $scheduleName --group-name $scheduleGroup --region $Region | Out-Null
     throw
 }
 
