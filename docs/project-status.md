@@ -29,6 +29,8 @@ fail-closed procedure that does not open the API.
 - Default API endpoint verified disabled in AWS.
 - `POST /mcp` requires Cognito JWT authorization with the exact audience and
   `aws-remote-mcp/use` scope.
+- Lambda independently checks the validated access-token claim contract and
+  removes the bearer header before the MCP application is constructed.
 - Public RFC 9728 metadata has GET/OPTIONS routes; the entire API remains
   unreachable while its default endpoint is disabled.
 - The API uses the `$default` stage so its endpoint and well-known metadata URI

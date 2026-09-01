@@ -172,6 +172,11 @@ Require the Cognito issuer, exact MCP endpoint audience and
 from satisfying the route. Keep RFC 9728 metadata public but expose no other
 unauthenticated application route.
 
+At the Lambda boundary, require matching validated `iss`, `aud`, `scope`,
+`token_use=access` and a non-empty subject, then discard the Authorization header
+before it reaches the ASGI application. This is defense in depth behind API
+Gateway and minimizes bearer-token propagation.
+
 Use API Gateway's `$default` stage so the canonical MCP URI is `/mcp` and its
 well-known metadata URI can follow the standard host-root insertion rule without
 a stage prefix. This supersedes only the temporary authorization and named-stage

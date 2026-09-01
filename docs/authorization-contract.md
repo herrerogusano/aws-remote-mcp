@@ -49,6 +49,11 @@ The design must require a scope so ID tokens are not accepted accidentally.
 Cognito's resource binding can place the requested MCP resource URI into access
 token `aud` for user authorization-code flows.
 
+The Lambda boundary then requires the already validated claims to match the
+issuer, exact audience, `token_use=access`, non-empty subject and required scope.
+It removes the inbound `Authorization` header before constructing the ASGI/MCP
+application, so the bearer cannot enter tool code or application logging.
+
 The app client has no secret, uses only the authorization-code flow, and permits
 the Inspector native callback `http://127.0.0.1:6276/oauth/callback`. Access
 tokens last five minutes and must contain both the endpoint audience and

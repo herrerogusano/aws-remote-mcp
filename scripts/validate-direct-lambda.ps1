@@ -38,6 +38,20 @@ $functionName = Get-StackOutput "DevFunctionName"
 $shutdownArn = Get-StackOutput "SafetyShutdownFunctionArn"
 $schedulerRoleArn = Get-StackOutput "SafetyShutdownSchedulerRoleArn"
 $scheduleGroup = Get-StackOutput "SafetyShutdownScheduleGroupName"
+$functionConfig = Invoke-AwsCli @(
+    "lambda", "get-function-configuration",
+    "--function-name", $functionName,
+    "--region", $Region,
+    "--output", "json"
+) | ConvertFrom-Json
+$issuer = $functionConfig.Environment.Variables.COGNITO_ISSUER
+$audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
+if (
+    [string]::IsNullOrWhiteSpace($issuer) -or
+    $audience -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp"
+) {
+    throw "Deployed Lambda authorization configuration is missing or unexpected."
+}
 
 $endpointDisabled = Invoke-AwsCli @(
     "apigatewayv2", "get-api",
@@ -120,6 +134,18 @@ function New-McpEventJson {
             }
             requestId   = [guid]::NewGuid().ToString("N")
             routeKey    = "POST /mcp"
+            authorizer  = [ordered]@{
+                jwt = [ordered]@{
+                    claims = [ordered]@{
+                        iss       = $issuer
+                        aud       = $audience
+                        sub       = "direct-synthetic-validation"
+                        scope     = "aws-remote-mcp/use"
+                        token_use = "access"
+                    }
+                    scopes = @("aws-remote-mcp/use")
+                }
+            }
             stage       = '$default'
             time        = ""
             timeEpoch   = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
