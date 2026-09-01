@@ -82,6 +82,19 @@ Verify again that the API is disabled, concurrency is zero, and the temporary
 traffic alarm no longer exists. Inspect sanitized logs and record cold/warm
 latency without sending credentials or sensitive application payloads.
 
+After TOTP enrollment, the complete Inspector validation is wrapped in one
+command:
+
+```powershell
+.\scripts\validate-inspector-window.ps1
+```
+
+It performs all closed-state and MFA preflights, prepares the pinned Inspector
+before opening AWS, uses a private temporary OAuth store, opens at most five
+minutes with a 15-request tripwire, runs only tool discovery and the two safe
+synthetic tools, then closes AWS and deletes OAuth state in `finally`. Do not run
+the individual opener for this validation; the wrapper owns the whole lifecycle.
+
 ## API-closed Lambda validation
 
 If the account quota cannot allocate reserved concurrency one, do not weaken
