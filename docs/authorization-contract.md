@@ -69,7 +69,9 @@ or DCR, compare authorization-server alternatives instead of inventing a
 registration protocol or weakening authorization.
 
 The configuration contract in `auth-template.yaml` is deployed as the separate
-`aws-remote-mcp-auth-dev` stack and is not yet connected to the API route. One
+`aws-remote-mcp-auth-dev` stack. The application template connects its issuer,
+exact audience and required scope to an API Gateway JWT authorizer while keeping
+the endpoint disabled. One
 administrator-created validation identity now exists; its delivery was
 suppressed and it has no email or phone attributes. The client normally exposes
 only the MCP custom scope; the Cognito self-service scope can be enabled only by
@@ -78,8 +80,8 @@ an explicit TOTP enrollment parameter that is closed by default.
 ## Deployment boundary
 
 The normal local runner remains loopback-only and unprotected for development.
-The Cognito foundation exists, but user creation, API Gateway JWT integration
-and any remote opening remain independent deployment gates.
+The Cognito foundation and closed JWT route exist, but TOTP enrollment and any
+remote opening remain independent deployment gates.
 
 ## Sources
 

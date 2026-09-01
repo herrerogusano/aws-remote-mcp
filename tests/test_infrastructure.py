@@ -20,10 +20,12 @@ def test_template_is_dev_only_and_bounded() -> None:
     assert template.count("ReservedConcurrentExecutions:") == 1
     assert "ThrottlingBurstLimit: 1" in template
     assert "ThrottlingRateLimit: 1" in template
+    assert 'StageName: "$default"' in template
+    assert "DevStageName:" in template
     assert template.count("RetentionInDays: 7") == 3
 
 
-def test_endpoint_is_closed_and_iam_authenticated_by_default() -> None:
+def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     template = template_text()
 
     assert "DisableExecuteApiEndpoint: true" in template
@@ -31,8 +33,15 @@ def test_endpoint_is_closed_and_iam_authenticated_by_default() -> None:
     assert 'openapi: "3.0.1"' in template
     assert 'url: "/"' in template
     assert "paths: {}" in template
-    assert "EnableIamAuthorizer: true" in template
-    assert "DefaultAuthorizer: AWS_IAM" in template
+    assert "CognitoJwtAuthorizer:" in template
+    assert "DefaultAuthorizer: CognitoJwtAuthorizer" in template
+    assert 'IdentitySource: "$request.header.Authorization"' in template
+    assert "issuer: !Ref CognitoIssuer" in template
+    assert "- !Ref McpTokenAudience" in template
+    assert "AuthorizationScopes:" in template
+    assert "- aws-remote-mcp/use" in template
+    assert "EnableIamAuthorizer" not in template
+    assert "AWS_IAM" not in template
 
 
 def test_template_iam_is_exactly_log_delivery() -> None:
@@ -72,7 +81,10 @@ def test_only_current_mcp_post_route_is_exposed() -> None:
     assert "Path: /mcp" in template
     assert 'PayloadFormatVersion: "2.0"' in template
     assert "Method: ANY" not in template
-    assert "Method: GET" not in template
+    assert template.count("Method: GET") == 1
+    assert template.count("Method: OPTIONS") == 1
+    assert template.count("Path: /.well-known/oauth-protected-resource/mcp") == 2
+    assert template.count("Authorizer: NONE") == 2
 
 
 def test_automatic_shutdown_is_wired_to_exact_resources() -> None:

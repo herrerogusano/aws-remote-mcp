@@ -7,7 +7,8 @@ from typing import Any
 
 from mangum import Mangum
 
-from aws_remote_mcp.http_server import create_app
+from aws_remote_mcp.http_server import create_gateway_app
+from aws_remote_mcp.security.authorization import AuthorizationConfig
 
 
 def _required_environment(name: str) -> str:
@@ -40,15 +41,17 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             "This Lambda deployment is restricted to APP_ENVIRONMENT=dev."
         )
     allowed_host = _api_gateway_host(event)
-    app = create_app(
+    authorization = AuthorizationConfig(
+        issuer_url=_required_environment("COGNITO_ISSUER"),
+        resource_server_url=_required_environment("MCP_RESOURCE_URL"),
+    )
+    app = create_gateway_app(
+        authorization=authorization,
         allowed_hosts=(allowed_host,),
-        allowed_origins=(),
         environment=environment,
-        include_previews=False,
     )
     adapter = Mangum(
         app,
         lifespan="auto",
-        api_gateway_base_path=f"/{environment}",
     )
     return adapter(event, context)

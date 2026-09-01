@@ -39,6 +39,7 @@ function Get-StackOutput {
 }
 
 $apiId = Get-StackOutput "DevApiId"
+$stageName = Get-StackOutput "DevStageName"
 $functionName = Get-StackOutput "DevFunctionName"
 $shutdownArn = Get-StackOutput "SafetyShutdownFunctionArn"
 $schedulerRoleArn = Get-StackOutput "SafetyShutdownSchedulerRoleArn"
@@ -69,7 +70,7 @@ Invoke-AwsCli @(
     "--region", $Region,
     "--namespace", "AWS/ApiGateway",
     "--metric-name", "Count",
-    "--dimensions", "Name=ApiId,Value=$apiId", "Name=Stage,Value=dev",
+    "--dimensions", "Name=ApiId,Value=$apiId", "Name=Stage,Value=$stageName",
     "--statistic", "Sum",
     "--period", "60",
     "--evaluation-periods", "1",
@@ -106,6 +107,6 @@ catch {
     OpenedAtUtc       = [DateTime]::UtcNow.ToString("O")
     AutomaticCloseUtc = $closeAt.ToString("O")
     RequestTripwire   = $RequestThreshold
-    Authentication    = "AWS_IAM"
+    Authentication    = "Cognito JWT with aws-remote-mcp/use"
     ScheduleName      = $scheduleName
 }

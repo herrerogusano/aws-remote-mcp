@@ -6,6 +6,7 @@ ROOT = Path(__file__).parents[1]
 OPEN_SCRIPT = ROOT / "scripts" / "open-dev-window.ps1"
 CLOSE_SCRIPT = ROOT / "scripts" / "close-dev-window.ps1"
 TOTP_SCRIPT = ROOT / "scripts" / "enroll-cognito-totp.ps1"
+DIRECT_SCRIPT = ROOT / "scripts" / "validate-direct-lambda.ps1"
 
 
 def test_open_window_installs_guards_before_enabling_endpoint() -> None:
@@ -23,6 +24,9 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     assert "Input='{}'" in script
     assert "ConvertTo-Json" not in script
     assert '"--no-disable-execute-api-endpoint"' in script
+    assert 'Get-StackOutput "DevStageName"' in script
+    assert '"Name=Stage,Value=$stageName"' in script
+    assert 'Authentication    = "Cognito JWT with aws-remote-mcp/use"' in script
     assert '"ce", "get-cost-and-usage"' not in script
 
 
@@ -60,3 +64,12 @@ def test_totp_enrollment_gate_is_fail_closed() -> None:
     assert "DisableExecuteApiEndpoint" in script
     assert "ReservedConcurrentExecutions -ne 0" in script
     assert '"ce", "get-cost-and-usage"' not in script
+
+
+def test_direct_validation_matches_default_stage_gateway_contract() -> None:
+    script = DIRECT_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'rawPath          = "/mcp"' in script
+    assert 'path      = "/mcp"' in script
+    assert "stage       = '$default'" in script
+    assert "/dev/mcp" not in script

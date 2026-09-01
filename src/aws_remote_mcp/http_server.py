@@ -7,8 +7,10 @@ from typing import Any
 
 from mcp.server import MCPServer
 from mcp.server.auth.provider import TokenVerifier
+from mcp.server.auth.routes import create_protected_resource_routes
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.transport_security import TransportSecuritySettings
+from pydantic import AnyHttpUrl
 from starlette.applications import Starlette
 
 from aws_remote_mcp.adapters.fakes import (
@@ -225,6 +227,35 @@ def create_protected_app(
     app.add_middleware(
         ScopeChallengeMiddleware,
         required_scopes=authorization.required_scopes,
+    )
+    return app
+
+
+def create_gateway_app(
+    *,
+    authorization: AuthorizationConfig,
+    allowed_hosts: tuple[str, ...],
+    environment: str,
+) -> Starlette:
+    """Build the API Gateway app with public RFC 9728 metadata.
+
+    API Gateway validates bearer tokens before invoking the MCP route. The
+    metadata route remains public so compatible clients can discover Cognito.
+    """
+
+    app = create_app(
+        allowed_hosts=allowed_hosts,
+        allowed_origins=(),
+        environment=environment,
+        include_previews=False,
+    )
+    app.routes.extend(
+        create_protected_resource_routes(
+            resource_url=AnyHttpUrl(authorization.resource_server_url),
+            authorization_servers=[AnyHttpUrl(authorization.issuer_url)],
+            scopes_supported=list(authorization.required_scopes),
+            resource_name="AWS Remote MCP",
+        )
     )
     return app
 

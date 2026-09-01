@@ -60,7 +60,8 @@ The SDK session manager cannot start a second time when one process-global ASGI
 app is started and stopped for consecutive Lambda events. Disabling lifespan is
 also invalid because its task group is then uninitialized. The selected stateless
 adapter therefore constructs a fresh ASGI app and Mangum adapter per invocation,
-keeps `lifespan="auto"`, and strips the `/dev` API stage before routing `/mcp`.
+keeps `lifespan="auto"`. The deployed HTTP API now uses `$default`, so `/mcp`
+reaches the ASGI route without a stage prefix.
 Two consecutive synthetic events both succeed and expose only the diagnostic and
 synthetic AWS tools. This keeps the official SDK lifecycle intact at the cost of
 small per-request initialization overhead, which will be measured in DEV.

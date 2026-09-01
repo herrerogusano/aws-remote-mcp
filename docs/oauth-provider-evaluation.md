@@ -69,8 +69,8 @@ stack. The auth stack was deployed on 2026-08-28 with the prefix
 `remote-mcp-dev-hg`. One administrator-created validation identity was added on
 2026-09-01 with messaging suppressed and no contact attributes. It has no deploy
 defaults for the globally unique domain or canonical MCP URI. Credential
-activation, API authorizer replacement and opening a remote test remain gated
-actions.
+activation and opening a remote test remain gated actions. The JWT authorizer is
+deployed but the entire API endpoint remains disabled.
 
 The Cognito prefix validator also rejects the service-reserved terms `aws`,
 `amazon` and `cognito`, which aren't expressed by the API's basic character

@@ -163,3 +163,17 @@ Cognito's lack of CIMD and DCR is an explicit interoperability boundary; never
 add a custom registration shim. Re-evaluate a native MCP authorization provider
 if a future client cannot
 accept pre-registration.
+
+## D-019 - JWT route and stage-less OAuth resource URI
+
+Replace the temporary IAM route guard with API Gateway's native JWT authorizer.
+Require the Cognito issuer, exact MCP endpoint audience and
+`aws-remote-mcp/use` route scope; the required scope prevents Cognito ID tokens
+from satisfying the route. Keep RFC 9728 metadata public but expose no other
+unauthenticated application route.
+
+Use API Gateway's `$default` stage so the canonical MCP URI is `/mcp` and its
+well-known metadata URI can follow the standard host-root insertion rule without
+a stage prefix. This supersedes only the temporary authorization and named-stage
+parts of D-016; endpoint disablement, zero concurrency, throttling and independent
+shutdown controls remain unchanged.

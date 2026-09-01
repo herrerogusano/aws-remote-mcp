@@ -103,7 +103,7 @@ function New-McpEventJson {
     return [ordered]@{
         version          = "2.0"
         routeKey         = "POST /mcp"
-        rawPath          = "/dev/mcp"
+        rawPath          = "/mcp"
         rawQueryString   = ""
         headers          = $headers
         requestContext   = [ordered]@{
@@ -113,14 +113,14 @@ function New-McpEventJson {
             domainPrefix = $apiId
             http        = [ordered]@{
                 method    = "POST"
-                path      = "/dev/mcp"
+                path      = "/mcp"
                 protocol  = "HTTP/1.1"
                 sourceIp  = "127.0.0.1"
                 userAgent = "direct-lambda-validation"
             }
             requestId   = [guid]::NewGuid().ToString("N")
             routeKey    = "POST /mcp"
-            stage       = "dev"
+            stage       = '$default'
             time        = ""
             timeEpoch   = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         }

@@ -12,6 +12,14 @@ from aws_remote_mcp.lambda_handler import handler
 
 API_HOST = "example.execute-api.eu-west-1.amazonaws.com"
 PROTOCOL_VERSION = "2026-07-28"
+ISSUER = "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_example"
+RESOURCE = f"https://{API_HOST}/mcp"
+
+
+@pytest.fixture(autouse=True)
+def gateway_authorization_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("COGNITO_ISSUER", ISSUER)
+    monkeypatch.setenv("MCP_RESOURCE_URL", RESOURCE)
 
 
 @dataclass(slots=True)
@@ -62,7 +70,7 @@ def http_api_event(
     return {
         "version": "2.0",
         "routeKey": "POST /mcp",
-        "rawPath": "/dev/mcp",
+        "rawPath": "/mcp",
         "rawQueryString": "",
         "headers": headers,
         "requestContext": {
@@ -72,14 +80,14 @@ def http_api_event(
             "domainPrefix": "example",
             "http": {
                 "method": "POST",
-                "path": "/dev/mcp",
+                "path": "/mcp",
                 "protocol": "HTTP/1.1",
                 "sourceIp": "127.0.0.1",
                 "userAgent": "contract-test",
             },
             "requestId": "api-request-1",
             "routeKey": "POST /mcp",
-            "stage": "dev",
+            "stage": "$default",
             "time": "",
             "timeEpoch": 0,
         },
@@ -146,3 +154,40 @@ def test_lambda_requires_api_gateway_domain(monkeypatch: pytest.MonkeyPatch) -> 
 
     with pytest.raises(RuntimeError, match="domain name"):
         handler(event, FakeLambdaContext())
+
+
+def test_gateway_serves_public_protected_resource_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    event = http_api_event("metadata")
+    event["routeKey"] = "GET /.well-known/oauth-protected-resource/mcp"
+    event["rawPath"] = "/.well-known/oauth-protected-resource/mcp"
+    event["body"] = None
+    request_context = cast("dict[str, Any]", event["requestContext"])
+    request_context["routeKey"] = event["routeKey"]
+    http_context = cast("dict[str, Any]", request_context["http"])
+    http_context["method"] = "GET"
+    http_context["path"] = event["rawPath"]
+
+    response = handler(event, FakeLambdaContext())
+    metadata = response_body(response)
+
+    assert response["statusCode"] == 200
+    assert metadata["resource"] == RESOURCE
+    assert metadata["authorization_servers"] == [ISSUER]
+    assert metadata["scopes_supported"] == ["aws-remote-mcp/use"]
+    assert metadata["bearer_methods_supported"] == ["header"]
+
+
+@pytest.mark.parametrize("name", ["COGNITO_ISSUER", "MCP_RESOURCE_URL"])
+def test_lambda_requires_gateway_authorization_configuration(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.delenv(name)
+
+    with pytest.raises(RuntimeError, match=name):
+        handler(http_api_event("tools/list"), FakeLambdaContext())
