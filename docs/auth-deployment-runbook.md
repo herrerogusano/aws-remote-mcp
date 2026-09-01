@@ -34,6 +34,7 @@ aws cloudformation deploy `
     CognitoDomainPrefix=remote-mcp-dev-hg `
     McpResourceUri=$mcpResource `
     InspectorCallbackUrl=http://127.0.0.1:6276/oauth/callback `
+    TotpEnrollmentEnabled=false `
   --no-fail-on-empty-changeset `
   --tags environment=dev project=aws-remote-mcp
 ```
@@ -60,6 +61,28 @@ Verify through CloudFormation and Cognito control-plane reads:
 
 Do not call Cost Explorer. Do not create the validation user as part of this
 deployment.
+
+## One-time TOTP enrollment
+
+The app client does not normally expose Cognito's self-service administration
+scope. After the administrator-created identity has replaced its temporary
+password, run the dedicated local enrollment wrapper from the repository root:
+
+```powershell
+.\scripts\enroll-cognito-totp.ps1
+```
+
+The wrapper refuses to proceed unless exactly the expected validation identity
+exists, the API endpoint is disabled and Lambda reserved concurrency is zero. It
+then enables `aws.cognito.signin.user.admin` only for the enrollment session and
+starts a server bound to `127.0.0.1:6276`. The browser displays the setup key
+locally; tokens and TOTP material are not printed or written to disk.
+
+Add the displayed key to an authenticator and submit its current six-digit code.
+Whether enrollment succeeds, fails or is interrupted, the wrapper's `finally`
+block redeploys the default closed configuration and verifies that the client is
+left with exactly `aws-remote-mcp/use`. If final cleanup cannot be verified, the
+command fails loudly and the client configuration must be inspected immediately.
 
 ## Cost boundary
 

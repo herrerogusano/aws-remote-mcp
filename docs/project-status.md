@@ -18,8 +18,9 @@ Cognito Plus with enforced threat protection, a public pre-registered MCP
 Inspector client, PKCE, audience binding, five-minute access tokens, refresh
 rotation and mandatory TOTP. The pool is not connected to the still-closed API
 route. One administrator-created validation identity was added on 2026-09-01
-with delivery suppressed and no email or phone attributes; it still requires
-its first-login password change and TOTP enrollment.
+with delivery suppressed and no email or phone attributes. Its first-login
+password change is complete; TOTP enrollment remains pending and has a local,
+fail-closed procedure that does not open the API.
 
 ## Deployment posture
 
@@ -53,6 +54,6 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Complete the separately gated first-login password change and TOTP enrollment.
+Complete the separately gated local TOTP enrollment.
 API Gateway remains IAM-protected and disabled; replacing IAM with the JWT
 authorizer and opening a bounded validation window are later independent gates.

@@ -24,6 +24,16 @@ Parameters:
     Default: http://127.0.0.1:6276/oauth/callback
     AllowedValues:
       - http://127.0.0.1:6276/oauth/callback
+  TotpEnrollmentEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "true"
+    Description: Temporary gate for the user self-service scope required by TOTP setup.
+
+Conditions:
+  TotpEnrollmentActive: !Equals [!Ref TotpEnrollmentEnabled, "true"]
 
 Resources:
   AuthUserPool:
@@ -79,6 +89,10 @@ Resources:
         - code
       AllowedOAuthScopes:
         - aws-remote-mcp/use
+        - !If
+          - TotpEnrollmentActive
+          - aws.cognito.signin.user.admin
+          - !Ref AWS::NoValue
       SupportedIdentityProviders:
         - COGNITO
       CallbackURLs:
@@ -124,3 +138,6 @@ Outputs:
   RequiredScope:
     Description: Initial least-privilege MCP scope.
     Value: aws-remote-mcp/use
+  TotpEnrollmentGate:
+    Description: Whether the temporary Cognito TOTP enrollment scope is enabled.
+    Value: !Ref TotpEnrollmentEnabled

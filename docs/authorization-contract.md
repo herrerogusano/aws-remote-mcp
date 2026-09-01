@@ -71,7 +71,9 @@ registration protocol or weakening authorization.
 The configuration contract in `auth-template.yaml` is deployed as the separate
 `aws-remote-mcp-auth-dev` stack and is not yet connected to the API route. One
 administrator-created validation identity now exists; its delivery was
-suppressed and it has no email or phone attributes.
+suppressed and it has no email or phone attributes. The client normally exposes
+only the MCP custom scope; the Cognito self-service scope can be enabled only by
+an explicit TOTP enrollment parameter that is closed by default.
 
 ## Deployment boundary
 
