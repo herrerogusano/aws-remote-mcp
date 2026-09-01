@@ -66,9 +66,11 @@ CIMD before changing the resource server.
 
 `auth-template.yaml` is deliberately separate from the deployed closed app
 stack. The auth stack was deployed on 2026-08-28 with the prefix
-`remote-mcp-dev-hg` and zero users. It has no deploy defaults for the globally
-unique domain or canonical MCP URI. User creation, API authorizer replacement
-and opening a remote test remain gated actions.
+`remote-mcp-dev-hg`. One administrator-created validation identity was added on
+2026-09-01 with messaging suppressed and no contact attributes. It has no deploy
+defaults for the globally unique domain or canonical MCP URI. Credential
+activation, API authorizer replacement and opening a remote test remain gated
+actions.
 
 The Cognito prefix validator also rejects the service-reserved terms `aws`,
 `amazon` and `cognito`, which aren't expressed by the API's basic character

@@ -28,10 +28,12 @@ MCP client
 - Cost guardrails, temporary validation window and automatic shutdown path.
 - Verified closed DEV deployment in `eu-west-1`.
 - Three-call synthetic Lambda validation with the API kept disabled.
+- Administrator-only Cognito validation identity with suppressed messaging.
 
 ## Next milestones
 
-1. Create one gated administrator-only Cognito validation user.
+1. Complete the validation identity's first-login password change and TOTP
+   enrollment without opening the API.
 2. Replace temporary IAM with JWT authorization and validate MCP Inspector in a
    separately approved bounded window.
 3. Add least-privilege AWS inventory collectors.
