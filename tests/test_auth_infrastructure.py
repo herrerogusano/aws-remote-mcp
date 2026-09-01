@@ -16,6 +16,11 @@ def test_auth_template_is_dev_only_and_not_implicitly_deployable() -> None:
     assert "CognitoDomainPrefix:" in template
     assert "^(?!.*(?:aws|amazon|cognito))" in template
     assert "McpResourceUri:" in template
+    assert "TotpEnrollmentEnabled:" in template
+    assert 'Default: "false"' in template
+    assert (
+        'TotpEnrollmentActive: !Equals [!Ref TotpEnrollmentEnabled, "true"]' in template
+    )
     assert "Default: dev" in template
     assert "Default: https://" not in template
     assert "Default: aws-remote-mcp" not in template
@@ -46,6 +51,10 @@ def test_inspector_client_is_public_pkce_only_and_short_lived() -> None:
     assert "client_credentials" not in template
     assert "implicit" not in template
     assert "aws-remote-mcp/use" in template
+    assert "aws.cognito.signin.user.admin" in template
+    assert "TotpEnrollmentActive" in template
+    assert "TotpEnrollmentGate:" in template
+    assert "Value: !Ref TotpEnrollmentEnabled" in template
     assert "http://127.0.0.1:6276/oauth/callback" in template
     assert "AccessTokenValidity: 5" in template
     assert "RefreshTokenValidity: 1" in template

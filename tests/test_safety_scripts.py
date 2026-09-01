@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).parents[1]
 OPEN_SCRIPT = ROOT / "scripts" / "open-dev-window.ps1"
 CLOSE_SCRIPT = ROOT / "scripts" / "close-dev-window.ps1"
+TOTP_SCRIPT = ROOT / "scripts" / "enroll-cognito-totp.ps1"
 
 
 def test_open_window_installs_guards_before_enabling_endpoint() -> None:
@@ -45,3 +46,17 @@ def test_manual_close_disables_endpoint_before_stopping_compute() -> None:
     assert endpoint < concurrency < alarm
     assert "scheduler list-schedules" in script
     assert "scheduler delete-schedule" in script
+
+
+def test_totp_enrollment_gate_is_fail_closed() -> None:
+    script = TOTP_SCRIPT.read_text(encoding="utf-8")
+
+    assert 'Deploy-EnrollmentGate "true"' in script
+    finally_block = script[script.index("finally {") :]
+    assert 'Deploy-EnrollmentGate "false"' in finally_block
+    assert "aws-remote-mcp/use" in finally_block
+    assert "aws.cognito.signin.user.admin" not in finally_block
+    assert "http://127.0.0.1:6276/oauth/callback" in script
+    assert "DisableExecuteApiEndpoint" in script
+    assert "ReservedConcurrentExecutions -ne 0" in script
+    assert '"ce", "get-cost-and-usage"' not in script
