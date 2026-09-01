@@ -16,8 +16,10 @@ function was returned to reserved concurrency zero immediately afterward.
 The production-shaped OAuth foundation was deployed and verified on 2026-08-28:
 Cognito Plus with enforced threat protection, a public pre-registered MCP
 Inspector client, PKCE, audience binding, five-minute access tokens, refresh
-rotation and mandatory TOTP. The pool has zero users, and it is not connected
-to the still-closed API route.
+rotation and mandatory TOTP. The pool is not connected to the still-closed API
+route. One administrator-created validation identity was added on 2026-09-01
+with delivery suppressed and no email or phone attributes; it still requires
+its first-login password change and TOTP enrollment.
 
 ## Deployment posture
 
@@ -36,7 +38,7 @@ to the still-closed API route.
 - PROD and continuous deployment do not exist.
 - The separate Cognito auth stack has four complete resources, deletion
   protection, enforced threat protection, administrator-only user creation and
-  zero users.
+  exactly one validation identity.
 
 ## Account cost posture
 
@@ -45,12 +47,12 @@ actual spend. AWS provides no guaranteed hard spending cap. The project therefor
 uses disabled compute/endpoints and brief independently closed test windows as
 its primary cost controls.
 
-Cognito Plus costs $0.02 per direct active user with no minimum fee. The empty
-pool costs $0; administrator-only creation and the one-user project policy bound
-the future tier charge to $0.02 per active month.
+Cognito Plus costs $0.02 per direct active user with no minimum fee.
+Administrator-only creation and the one-user project policy bound the current
+tier charge to $0.02 per active month.
 
 ## Next decision
 
-Review the separately gated creation of one administrator-only validation user.
+Complete the separately gated first-login password change and TOTP enrollment.
 API Gateway remains IAM-protected and disabled; replacing IAM with the JWT
 authorizer and opening a bounded validation window are later independent gates.

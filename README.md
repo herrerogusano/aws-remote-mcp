@@ -64,10 +64,10 @@ shutdown and request-volume tripwire. See `docs/cost-safety.md`.
 The deployed Lambda contract has also been validated directly while the API
 remained disabled. See `docs/direct-validation-evidence.md`.
 
-The selected OAuth/OIDC profile and its deployed zero-user Cognito foundation
+The selected OAuth/OIDC profile and its deployed single-user Cognito foundation
 are documented in `docs/oauth-provider-evaluation.md` and
-`docs/auth-deployment-runbook.md`. User creation, JWT route integration and any
-remote opening remain separate gated actions.
+`docs/auth-deployment-runbook.md`. Credential activation, JWT route integration
+and any remote opening remain separate gated actions.
 
 ## Safety baseline
 

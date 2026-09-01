@@ -69,8 +69,9 @@ or DCR, compare authorization-server alternatives instead of inventing a
 registration protocol or weakening authorization.
 
 The configuration contract in `auth-template.yaml` is deployed as the separate
-`aws-remote-mcp-auth-dev` stack. It contains zero users and is not yet connected
-to the API route.
+`aws-remote-mcp-auth-dev` stack and is not yet connected to the API route. One
+administrator-created validation identity now exists; its delivery was
+suppressed and it has no email or phone attributes.
 
 ## Deployment boundary
 
