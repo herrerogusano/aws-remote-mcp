@@ -8,6 +8,14 @@ Parameters:
     Default: dev
     AllowedValues:
       - dev
+  CognitoIssuer:
+    Type: String
+    Description: Exact issuer URL of the dedicated Cognito user pool.
+    AllowedPattern: "^https://cognito-idp\\.eu-west-1\\.amazonaws\\.com/eu-west-1_[A-Za-z0-9]+$"
+  McpTokenAudience:
+    Type: String
+    Description: Exact audience required in access tokens for this MCP endpoint.
+    AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp$"
 
 Globals:
   Function:
@@ -77,7 +85,7 @@ Resources:
   RemoteMcpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
-      StageName: !Ref Environment
+      StageName: "$default"
       DisableExecuteApiEndpoint: true
       FailOnWarnings: true
       DefinitionBody:
@@ -90,8 +98,16 @@ Resources:
           - url: "/"
         paths: {}
       Auth:
-        EnableIamAuthorizer: true
-        DefaultAuthorizer: AWS_IAM
+        Authorizers:
+          CognitoJwtAuthorizer:
+            AuthorizationScopes:
+              - aws-remote-mcp/use
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Ref CognitoIssuer
+              audience:
+                - !Ref McpTokenAudience
+        DefaultAuthorizer: CognitoJwtAuthorizer
       DefaultRouteSettings:
         ThrottlingBurstLimit: 1
         ThrottlingRateLimit: 1
@@ -120,6 +136,10 @@ Resources:
         LogFormat: JSON
         ApplicationLogLevel: INFO
         SystemLogLevel: INFO
+      Environment:
+        Variables:
+          COGNITO_ISSUER: !Ref CognitoIssuer
+          MCP_RESOURCE_URL: !Ref McpTokenAudience
       Events:
         McpPost:
           Type: HttpApi
@@ -129,6 +149,28 @@ Resources:
             Path: /mcp
             PayloadFormatVersion: "2.0"
             TimeoutInMillis: 10000
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+              AuthorizationScopes:
+                - aws-remote-mcp/use
+        ProtectedResourceMetadataGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RemoteMcpApi
+            Method: GET
+            Path: /.well-known/oauth-protected-resource/mcp
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
+        ProtectedResourceMetadataOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RemoteMcpApi
+            Method: OPTIONS
+            Path: /.well-known/oauth-protected-resource/mcp
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
       Tags:
         environment: !Ref Environment
         project: aws-remote-mcp
@@ -283,11 +325,17 @@ Resources:
 
 Outputs:
   DevMcpEndpoint:
-    Description: Closed-by-default DEV MCP endpoint; production OAuth is pending.
-    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${Environment}/mcp"
+    Description: Closed-by-default DEV MCP endpoint protected by Cognito JWT.
+    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/mcp"
+  ProtectedResourceMetadataEndpoint:
+    Description: Public OAuth protected-resource metadata while the API is enabled.
+    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/.well-known/oauth-protected-resource/mcp"
   DevApiId:
     Description: DEV HTTP API identifier.
     Value: !Ref RemoteMcpApi
+  DevStageName:
+    Description: Stage used by the stage-less execute-api endpoint URL.
+    Value: "$default"
   DevFunctionName:
     Description: DEV Lambda function name.
     Value: !Ref RemoteMcpFunction

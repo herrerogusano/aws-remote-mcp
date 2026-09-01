@@ -11,9 +11,10 @@ MCP client
   -> AWS APIs / Telegram / Trello
 ```
 
-No runtime infrastructure currently exists. Lambda and API Gateway remain the
-target unless current MCP protocol behavior proves them incompatible; changing
-compute requires a documented architecture review.
+The DEV runtime exists in `eu-west-1` and remains disabled outside bounded test
+windows. Lambda and API Gateway remain the target unless current MCP protocol
+behavior proves them incompatible; changing compute requires a documented
+architecture review.
 
 ## Delivery model
 

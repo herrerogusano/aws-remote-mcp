@@ -57,9 +57,10 @@ exist. Infrastructure changes require the review described in
 `docs/operational-approvals.md`.
 
 The prepared DEV stack is closed by default: its execute-api endpoint is disabled,
-the route requires AWS IAM, and MCP Lambda concurrency is zero. A separately
-approved test window is limited to five minutes with an independent scheduled
-shutdown and request-volume tripwire. See `docs/cost-safety.md`.
+the MCP route requires a scoped, audience-bound Cognito JWT, and MCP Lambda
+concurrency is zero. A separately approved test window is limited to five minutes
+with an independent scheduled shutdown and request-volume tripwire. See
+`docs/cost-safety.md`.
 
 The deployed Lambda contract has also been validated directly while the API
 remained disabled. See `docs/direct-validation-evidence.md`.

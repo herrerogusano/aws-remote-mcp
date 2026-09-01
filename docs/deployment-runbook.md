@@ -16,17 +16,34 @@ sam build --beta-features
 ```
 
 The template accepts only `Environment=dev`. It needs no secrets and exposes no
-real AWS inventory or external write tools.
+real AWS inventory or external write tools. The Cognito stack must already exist
+because its exact issuer and the existing API identifier are deployment inputs.
 
 ## Approved closed deployment
 
 ```powershell
+$auth = aws cloudformation describe-stacks `
+  --stack-name aws-remote-mcp-auth-dev `
+  --region eu-west-1 `
+  --output json | ConvertFrom-Json
+$issuer = ($auth.Stacks[0].Outputs | Where-Object OutputKey -eq 'Issuer').OutputValue
+
+$app = aws cloudformation describe-stacks `
+  --stack-name aws-remote-mcp-dev `
+  --region eu-west-1 `
+  --output json | ConvertFrom-Json
+$apiId = ($app.Stacks[0].Outputs | Where-Object OutputKey -eq 'DevApiId').OutputValue
+$audience = "https://$apiId.execute-api.eu-west-1.amazonaws.com/mcp"
+
 sam deploy `
   --stack-name aws-remote-mcp-dev `
   --region eu-west-1 `
   --resolve-s3 `
   --capabilities CAPABILITY_IAM `
-  --parameter-overrides Environment=dev `
+  --parameter-overrides `
+    Environment=dev `
+    CognitoIssuer=$issuer `
+    McpTokenAudience=$audience `
   --no-confirm-changeset `
   --no-fail-on-empty-changeset
 ```
@@ -45,7 +62,9 @@ Do not open the endpoint as part of the closed-stack deployment.
 
 The opener performs no billable Cost Explorer query. It creates an auto-deleting
 AWS Scheduler deadline and a CloudWatch request alarm before enabling anything.
-The endpoint requires SigV4/AWS IAM authorization.
+The MCP route requires a Cognito access token with the exact endpoint audience
+and `aws-remote-mcp/use` scope. The RFC 9728 metadata route is public only while
+the whole API endpoint is enabled.
 
 ```powershell
 .\scripts\open-dev-window.ps1
@@ -62,6 +81,19 @@ The maximum window is five minutes. The alarm invokes the safety shutdown after
 Verify again that the API is disabled, concurrency is zero, and the temporary
 traffic alarm no longer exists. Inspect sanitized logs and record cold/warm
 latency without sending credentials or sensitive application payloads.
+
+After TOTP enrollment, the complete Inspector validation is wrapped in one
+command:
+
+```powershell
+.\scripts\validate-inspector-window.ps1
+```
+
+It performs all closed-state and MFA preflights, prepares the pinned Inspector
+before opening AWS, uses a private temporary OAuth store, opens at most five
+minutes with a 15-request tripwire, runs only tool discovery and the two safe
+synthetic tools, then closes AWS and deletes OAuth state in `finally`. Do not run
+the individual opener for this validation; the wrapper owns the whole lifecycle.
 
 ## API-closed Lambda validation
 
@@ -80,7 +112,10 @@ API Gateway IAM data path. That remains a separate validation decision.
 ## Expected resources
 
 - CloudFormation stack `aws-remote-mcp-dev`;
-- one disabled-by-default, IAM-authorized HTTP API and `dev` stage;
+- one disabled-by-default HTTP API with a Cognito JWT authorizer and default
+  stage;
+- one JWT-protected `POST /mcp` route plus public GET/OPTIONS protected-resource
+  metadata routes;
 - the MCP Lambda, permission and logs, stopped by default;
 - an idle safety-shutdown Lambda and logs;
 - a safety SNS topic and exact topic policy;

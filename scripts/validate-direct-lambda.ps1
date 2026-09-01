@@ -38,6 +38,20 @@ $functionName = Get-StackOutput "DevFunctionName"
 $shutdownArn = Get-StackOutput "SafetyShutdownFunctionArn"
 $schedulerRoleArn = Get-StackOutput "SafetyShutdownSchedulerRoleArn"
 $scheduleGroup = Get-StackOutput "SafetyShutdownScheduleGroupName"
+$functionConfig = Invoke-AwsCli @(
+    "lambda", "get-function-configuration",
+    "--function-name", $functionName,
+    "--region", $Region,
+    "--output", "json"
+) | ConvertFrom-Json
+$issuer = $functionConfig.Environment.Variables.COGNITO_ISSUER
+$audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
+if (
+    [string]::IsNullOrWhiteSpace($issuer) -or
+    $audience -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp"
+) {
+    throw "Deployed Lambda authorization configuration is missing or unexpected."
+}
 
 $endpointDisabled = Invoke-AwsCli @(
     "apigatewayv2", "get-api",
@@ -103,7 +117,7 @@ function New-McpEventJson {
     return [ordered]@{
         version          = "2.0"
         routeKey         = "POST /mcp"
-        rawPath          = "/dev/mcp"
+        rawPath          = "/mcp"
         rawQueryString   = ""
         headers          = $headers
         requestContext   = [ordered]@{
@@ -113,14 +127,26 @@ function New-McpEventJson {
             domainPrefix = $apiId
             http        = [ordered]@{
                 method    = "POST"
-                path      = "/dev/mcp"
+                path      = "/mcp"
                 protocol  = "HTTP/1.1"
                 sourceIp  = "127.0.0.1"
                 userAgent = "direct-lambda-validation"
             }
             requestId   = [guid]::NewGuid().ToString("N")
             routeKey    = "POST /mcp"
-            stage       = "dev"
+            authorizer  = [ordered]@{
+                jwt = [ordered]@{
+                    claims = [ordered]@{
+                        iss       = $issuer
+                        aud       = $audience
+                        sub       = "direct-synthetic-validation"
+                        scope     = "aws-remote-mcp/use"
+                        token_use = "access"
+                    }
+                    scopes = @("aws-remote-mcp/use")
+                }
+            }
+            stage       = '$default'
             time        = ""
             timeEpoch   = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
         }

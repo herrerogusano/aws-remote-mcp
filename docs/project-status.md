@@ -16,8 +16,9 @@ function was returned to reserved concurrency zero immediately afterward.
 The production-shaped OAuth foundation was deployed and verified on 2026-08-28:
 Cognito Plus with enforced threat protection, a public pre-registered MCP
 Inspector client, PKCE, audience binding, five-minute access tokens, refresh
-rotation and mandatory TOTP. The pool is not connected to the still-closed API
-route. One administrator-created validation identity was added on 2026-09-01
+rotation and mandatory TOTP. Its issuer, exact audience and required custom scope
+are connected to the still-closed API through a JWT authorizer. One
+administrator-created validation identity was added on 2026-09-01
 with delivery suppressed and no email or phone attributes. Its first-login
 password change is complete; TOTP enrollment remains pending and has a local,
 fail-closed procedure that does not open the API.
@@ -26,7 +27,14 @@ fail-closed procedure that does not open the API.
 
 - DEV stack deployed with every CloudFormation resource complete.
 - Default API endpoint verified disabled in AWS.
-- The only route is `POST /mcp`, verified with AWS IAM authorization.
+- `POST /mcp` requires Cognito JWT authorization with the exact audience and
+  `aws-remote-mcp/use` scope.
+- Lambda independently checks the validated access-token claim contract and
+  removes the bearer header before the MCP application is constructed.
+- Public RFC 9728 metadata has GET/OPTIONS routes; the entire API remains
+  unreachable while its default endpoint is disabled.
+- The API uses the `$default` stage so its endpoint and well-known metadata URI
+  have standards-compatible paths without a stage prefix.
 - MCP Lambda verified at reserved concurrency zero, 128 MB and 10-second timeout.
 - Stage throttling verified at rate 1 request/second and burst 1.
 - Five-minute signed validation window has scheduled and volume-based shutdown.
@@ -55,5 +63,5 @@ tier charge to $0.02 per active month.
 ## Next decision
 
 Complete the separately gated local TOTP enrollment.
-API Gateway remains IAM-protected and disabled; replacing IAM with the JWT
-authorizer and opening a bounded validation window are later independent gates.
+API Gateway is JWT-protected and disabled. TOTP enrollment is the next local
+action; opening a bounded validation window remains a later independent gate.

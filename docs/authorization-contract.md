@@ -49,6 +49,11 @@ The design must require a scope so ID tokens are not accepted accidentally.
 Cognito's resource binding can place the requested MCP resource URI into access
 token `aud` for user authorization-code flows.
 
+The Lambda boundary then requires the already validated claims to match the
+issuer, exact audience, `token_use=access`, non-empty subject and required scope.
+It removes the inbound `Authorization` header before constructing the ASGI/MCP
+application, so the bearer cannot enter tool code or application logging.
+
 The app client has no secret, uses only the authorization-code flow, and permits
 the Inspector native callback `http://127.0.0.1:6276/oauth/callback`. Access
 tokens last five minutes and must contain both the endpoint audience and
@@ -69,7 +74,9 @@ or DCR, compare authorization-server alternatives instead of inventing a
 registration protocol or weakening authorization.
 
 The configuration contract in `auth-template.yaml` is deployed as the separate
-`aws-remote-mcp-auth-dev` stack and is not yet connected to the API route. One
+`aws-remote-mcp-auth-dev` stack. The application template connects its issuer,
+exact audience and required scope to an API Gateway JWT authorizer while keeping
+the endpoint disabled. One
 administrator-created validation identity now exists; its delivery was
 suppressed and it has no email or phone attributes. The client normally exposes
 only the MCP custom scope; the Cognito self-service scope can be enabled only by
@@ -78,8 +85,8 @@ an explicit TOTP enrollment parameter that is closed by default.
 ## Deployment boundary
 
 The normal local runner remains loopback-only and unprotected for development.
-The Cognito foundation exists, but user creation, API Gateway JWT integration
-and any remote opening remain independent deployment gates.
+The Cognito foundation and closed JWT route exist, but TOTP enrollment and any
+remote opening remain independent deployment gates.
 
 ## Sources
 

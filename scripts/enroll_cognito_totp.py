@@ -16,7 +16,7 @@ import urllib.request
 import webbrowser
 from dataclasses import dataclass
 from http import HTTPStatus
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Never
 
 LOOPBACK_HOST = "127.0.0.1"
@@ -198,7 +198,7 @@ def page(title: str, body: str) -> bytes:
         '<meta name="viewport" content="width=device-width">'
         '<meta http-equiv="Content-Security-Policy" '
         "content=\"default-src 'none'; style-src 'unsafe-inline'; "
-        "form-action 'self'; base-uri 'none'\">"
+        "form-action 'self'; base-uri 'none'; frame-ancestors 'none'\">"
         '<meta http-equiv="Cache-Control" content="no-store">'
         f"<title>{escaped_title}</title><style>"
         "body{font:16px system-ui;max-width:42rem;margin:4rem auto;"
@@ -221,6 +221,7 @@ def handler_for(session: EnrollmentSession) -> type[BaseHTTPRequestHandler]:
             self.send_header("Pragma", "no-cache")
             self.send_header("Referrer-Policy", "no-referrer")
             self.send_header("X-Content-Type-Options", "nosniff")
+            self.send_header("X-Frame-Options", "DENY")
             self.send_header("Content-Length", str(len(content)))
             self.end_headers()
             self.wfile.write(content)
@@ -270,6 +271,9 @@ def handler_for(session: EnrollmentSession) -> type[BaseHTTPRequestHandler]:
                 self.send_page(HTTPStatus.NOT_FOUND, page("Not found", ""))
                 return
             try:
+                content_type = self.headers.get("Content-Type", "").split(";", 1)[0]
+                if content_type.lower() != "application/x-www-form-urlencoded":
+                    raise EnrollmentError("Invalid verification content type")
                 length = int(self.headers.get("Content-Length", "0"))
                 if length < 1 or length > 128:
                     raise EnrollmentError("Invalid verification request")
@@ -314,12 +318,28 @@ def main() -> None:
     args = parser.parse_args()
     if not 1024 <= args.port <= 65535:
         fail("port must be between 1024 and 65535")
-    if not args.authorization_server.startswith("https://"):
-        fail("authorization server must use HTTPS")
+    authorization_server = urllib.parse.urlsplit(args.authorization_server)
+    expected_suffix = f".auth.{args.region}.amazoncognito.com"
+    if (
+        authorization_server.scheme != "https"
+        or authorization_server.hostname is None
+        or not authorization_server.hostname.endswith(expected_suffix)
+        or authorization_server.username is not None
+        or authorization_server.password is not None
+        or authorization_server.port not in (None, 443)
+        or authorization_server.path not in ("", "/")
+        or authorization_server.query
+        or authorization_server.fragment
+    ):
+        fail("authorization server must be the expected regional Cognito domain")
+    if args.region != "eu-west-1":
+        fail("this DEV enrollment helper is restricted to eu-west-1")
+    if not re.fullmatch(r"[A-Za-z0-9]+", args.client_id):
+        fail("client ID has an unexpected format")
     session = EnrollmentSession.create(
         args.authorization_server, args.client_id, args.region, args.port
     )
-    server = ThreadingHTTPServer(
+    server = HTTPServer(
         (LOOPBACK_HOST, args.port), handler_for(session), bind_and_activate=False
     )
     server.allow_reuse_address = False

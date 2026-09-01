@@ -103,6 +103,11 @@ def test_helper_has_no_secret_persistence_or_non_loopback_listener() -> None:
     assert "write_bytes" not in source
     assert "log_message" in source
     assert 'Cache-Control", "no-store' in source
+    assert "HTTPServer(" in source
+    assert "ThreadingHTTPServer" not in source
+    assert "amazoncognito.com" in source
+    assert 'X-Frame-Options", "DENY"' in source
+    assert "application/x-www-form-urlencoded" in source
 
 
 @pytest.mark.parametrize("code", ["12345", "1234567", "abcdef", "12 345"])
