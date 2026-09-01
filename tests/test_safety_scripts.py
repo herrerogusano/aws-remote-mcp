@@ -28,6 +28,15 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     assert 'Get-StackOutput "DevStageName"' in script
     assert '"Name=Stage,Value=$stageName"' in script
     assert 'Authentication    = "Cognito JWT with aws-remote-mcp/use"' in script
+    assert 'AuthorizationType -ne "JWT"' in script
+    assert 'AuthorizationScopes[0] -ne "aws-remote-mcp/use"' in script
+    assert "SOFTWARE_TOKEN_MFA" in script
+    assert "TotpEnrollmentGate" in script
+    assert "JwtConfiguration.Issuer -ne $issuer" in script
+    assert "JwtConfiguration.Audience[0] -ne $endpoint" in script
+    assert "ThrottlingRateLimit -ne 1" in script
+    assert "Refusing to overlap or overwrite an existing validation window" in script
+    assert "The bounded window did not reach its exact open state" in script
     assert '"ce", "get-cost-and-usage"' not in script
 
 
