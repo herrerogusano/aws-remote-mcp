@@ -27,9 +27,9 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     assert '"--no-disable-execute-api-endpoint"' in script
     assert 'Get-StackOutput "DevStageName"' in script
     assert '"Name=Stage,Value=$stageName"' in script
-    assert 'Authentication    = "Cognito JWT with aws-remote-mcp/use"' in script
+    assert 'Authentication    = "Cognito JWT with $expectedScope"' in script
     assert 'AuthorizationType -ne "JWT"' in script
-    assert 'AuthorizationScopes[0] -ne "aws-remote-mcp/use"' in script
+    assert "AuthorizationScopes[0] -ne $expectedScope" in script
     assert "SOFTWARE_TOKEN_MFA" in script
     assert "TotpEnrollmentGate" in script
     assert "JwtConfiguration.Issuer -ne $issuer" in script
@@ -79,7 +79,7 @@ def test_totp_enrollment_gate_is_fail_closed() -> None:
     assert 'Deploy-EnrollmentGate "true"' in script
     finally_block = script[script.index("finally {") :]
     assert 'Deploy-EnrollmentGate "false"' in finally_block
-    assert "aws-remote-mcp/use" in finally_block
+    assert "$requiredScope" in finally_block
     assert "aws.cognito.signin.user.admin" not in finally_block
     assert "http://127.0.0.1:6276/oauth/callback" in script
     assert "DisableExecuteApiEndpoint" in script
@@ -122,7 +122,7 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert "access_token" not in script.split("return [pscustomobject]@{", 1)[1]
     assert "SOFTWARE_TOKEN_MFA" in script
     assert 'AuthorizationType -ne "JWT"' in script
-    assert 'AuthorizationScopes[0] -ne "aws-remote-mcp/use"' in script
+    assert "AuthorizationScopes[0] -ne $expectedScope" in script
     assert "The API has unexpected routes" in script
     assert "JwtConfiguration.Issuer -ne $issuer" in script
     assert "JwtConfiguration.Audience[0] -ne $endpoint" in script

@@ -16,6 +16,10 @@ Parameters:
     Type: String
     Description: Exact audience required in access tokens for this MCP endpoint.
     AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp$"
+  McpRequiredScope:
+    Type: String
+    Description: Exact resource-bound scope required for MCP access.
+    AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp/use$"
 
 Globals:
   Function:
@@ -101,7 +105,7 @@ Resources:
         Authorizers:
           CognitoJwtAuthorizer:
             AuthorizationScopes:
-              - aws-remote-mcp/use
+              - !Ref McpRequiredScope
             IdentitySource: "$request.header.Authorization"
             JwtConfiguration:
               issuer: !Ref CognitoIssuer
@@ -152,7 +156,7 @@ Resources:
             Auth:
               Authorizer: CognitoJwtAuthorizer
               AuthorizationScopes:
-                - aws-remote-mcp/use
+                - !Ref McpRequiredScope
         ProtectedResourceMetadataGet:
           Type: HttpApi
           Properties:

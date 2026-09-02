@@ -39,7 +39,8 @@ def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     assert "issuer: !Ref CognitoIssuer" in template
     assert "- !Ref McpTokenAudience" in template
     assert "AuthorizationScopes:" in template
-    assert "- aws-remote-mcp/use" in template
+    assert template.count("- !Ref McpRequiredScope") == 2
+    assert "McpRequiredScope:" in template
     assert "EnableIamAuthorizer" not in template
     assert "AWS_IAM" not in template
 

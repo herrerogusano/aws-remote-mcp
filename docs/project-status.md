@@ -29,7 +29,7 @@ removed afterward.
 - DEV stack deployed with every CloudFormation resource complete.
 - Default API endpoint verified disabled in AWS.
 - `POST /mcp` requires Cognito JWT authorization with the exact audience and
-  `aws-remote-mcp/use` scope.
+  resource-bound `<MCP endpoint>/use` scope.
 - Lambda independently checks the validated access-token claim contract and
   removes the bearer header before the MCP application is constructed.
 - Public RFC 9728 metadata has GET/OPTIONS routes; the entire API remains
@@ -51,6 +51,9 @@ removed afterward.
   and client ID correct, but Cognito's classic hosted UI omitted the requested
   resource audience. The prepared managed-login v2 update preserves strict
   endpoint audience checks instead of weakening authorization to client ID.
+- Managed login then enforced that custom scopes belong to the requested
+  resource. The coordinated update now uses the MCP endpoint as Cognito's
+  resource-server identifier and derives its sole scope as `<MCP endpoint>/use`.
 - No temporary alarm or automatic-close schedule is active while closed.
 - All three execution roles have only inline, resource-specific policies and no
   attached managed policy.
@@ -75,6 +78,7 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Deploy the separately reviewed managed-login v2 auth-stack update, verify the
-closed state, then repeat the bounded MCP Inspector validation. API Gateway
-remains JWT-protected and disabled until that explicit validation window opens.
+Deploy the separately reviewed coordinated resource-scope update to the closed
+auth and application stacks, verify their exact state, then repeat the bounded
+MCP Inspector validation. API Gateway remains disabled until that explicit
+validation window opens.

@@ -25,6 +25,7 @@ $appOutputs = aws cloudformation describe-stacks `
     --query "Stacks[0].Outputs" `
     --output json | ConvertFrom-Json
 $mcpResource = ($appOutputs | Where-Object OutputKey -eq "DevMcpEndpoint").OutputValue
+$requiredScope = "$mcpResource/use"
 $apiId = ($appOutputs | Where-Object OutputKey -eq "DevApiId").OutputValue
 $functionName = ($appOutputs | Where-Object OutputKey -eq "DevFunctionName").OutputValue
 
@@ -100,7 +101,7 @@ finally {
         --region $Region `
         --query "UserPoolClient.AllowedOAuthScopes" `
         --output json | ConvertFrom-Json
-    if (@($scopes).Count -ne 1 -or $scopes[0] -ne "aws-remote-mcp/use") {
+    if (@($scopes).Count -ne 1 -or $scopes[0] -ne $requiredScope) {
         throw "The temporary enrollment scope was not removed"
     }
 }

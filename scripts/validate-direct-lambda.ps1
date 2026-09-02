@@ -46,6 +46,7 @@ $functionConfig = Invoke-AwsCli @(
 ) | ConvertFrom-Json
 $issuer = $functionConfig.Environment.Variables.COGNITO_ISSUER
 $audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
+$requiredScope = "$audience/use"
 if (
     [string]::IsNullOrWhiteSpace($issuer) -or
     $audience -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp"
@@ -140,10 +141,10 @@ function New-McpEventJson {
                         iss       = $issuer
                         aud       = $audience
                         sub       = "direct-synthetic-validation"
-                        scope     = "aws-remote-mcp/use"
+                        scope     = $requiredScope
                         token_use = "access"
                     }
-                    scopes = @("aws-remote-mcp/use")
+                    scopes = @($requiredScope)
                 }
             }
             stage       = '$default'

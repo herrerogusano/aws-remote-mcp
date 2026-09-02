@@ -8,7 +8,7 @@ from typing import Any
 from mangum import Mangum
 
 from aws_remote_mcp.http_server import create_gateway_app
-from aws_remote_mcp.security.authorization import MCP_USE_SCOPE, AuthorizationConfig
+from aws_remote_mcp.security.authorization import AuthorizationConfig
 
 
 def _required_environment(name: str) -> str:
@@ -47,6 +47,7 @@ def _validated_gateway_event(
         if not isinstance(claims, dict):
             raise RuntimeError("Validated JWT claims are missing.")
         scopes = claims.get("scope", "")
+        required_scope = authorization.required_scopes[0]
         if (
             claims.get("iss") != authorization.issuer_url
             or claims.get("aud") != authorization.resource_server_url
@@ -54,7 +55,7 @@ def _validated_gateway_event(
             or not isinstance(claims.get("sub"), str)
             or not claims["sub"]
             or not isinstance(scopes, str)
-            or MCP_USE_SCOPE not in scopes.split()
+            or required_scope not in scopes.split()
         ):
             raise RuntimeError("Validated JWT claims violate the MCP contract.")
 

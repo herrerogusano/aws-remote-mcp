@@ -101,10 +101,12 @@ $authOutputs = $auth.Stacks[0].Outputs
 $apiId = ($appOutputs | Where-Object OutputKey -eq "DevApiId").OutputValue
 $functionName = ($appOutputs | Where-Object OutputKey -eq "DevFunctionName").OutputValue
 $endpoint = ($appOutputs | Where-Object OutputKey -eq "DevMcpEndpoint").OutputValue
+$expectedScope = "$endpoint/use"
 $metadataEndpoint = ($appOutputs | Where-Object OutputKey -eq "ProtectedResourceMetadataEndpoint").OutputValue
 $poolId = ($authOutputs | Where-Object OutputKey -eq "UserPoolId").OutputValue
 $clientId = ($authOutputs | Where-Object OutputKey -eq "InspectorClientId").OutputValue
 $issuer = ($authOutputs | Where-Object OutputKey -eq "Issuer").OutputValue
+$requiredScope = ($authOutputs | Where-Object OutputKey -eq "RequiredScope").OutputValue
 $gate = ($authOutputs | Where-Object OutputKey -eq "TotpEnrollmentGate").OutputValue
 $scheduleGroup = ($appOutputs | Where-Object OutputKey -eq "SafetyShutdownScheduleGroupName").OutputValue
 
@@ -161,7 +163,7 @@ if (
     @($mcpRoute).Count -ne 1 -or
     $mcpRoute.AuthorizationType -ne "JWT" -or
     @($mcpRoute.AuthorizationScopes).Count -ne 1 -or
-    $mcpRoute.AuthorizationScopes[0] -ne "aws-remote-mcp/use"
+    $mcpRoute.AuthorizationScopes[0] -ne $expectedScope
 ) {
     throw "The MCP route does not have the exact JWT authorization contract"
 }
@@ -190,8 +192,9 @@ $client = Invoke-AwsJson @(
     "--client-id", $clientId, "--region", $Region, "--output", "json"
 )
 if (
+    $requiredScope -ne $expectedScope -or
     @($client.UserPoolClient.AllowedOAuthScopes).Count -ne 1 -or
-    $client.UserPoolClient.AllowedOAuthScopes[0] -ne "aws-remote-mcp/use"
+    $client.UserPoolClient.AllowedOAuthScopes[0] -ne $expectedScope
 ) {
     throw "The Inspector client has unexpected OAuth scopes"
 }
@@ -283,7 +286,7 @@ try {
             $contract = Get-RedactedJwtContract `
                 -StorageDirectory $resolvedStorage -ServerUrl $endpoint `
                 -ExpectedIssuer $issuer -ExpectedAudience $endpoint `
-                -ExpectedScope "aws-remote-mcp/use" -ExpectedClientId $clientId
+                -ExpectedScope $expectedScope -ExpectedClientId $clientId
             Write-Warning "Redacted OAuth JWT contract: $($contract | ConvertTo-Json -Compress)"
         }
         catch {

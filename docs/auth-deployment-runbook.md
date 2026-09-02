@@ -56,7 +56,7 @@ Verify through CloudFormation and Cognito control-plane reads:
 - access-token validity is five minutes;
 - refresh-token validity is one day, token revocation is enabled and rotation
   has no grace reuse period;
-- only `aws-remote-mcp/use` is an allowed custom scope;
+- only `<MCP endpoint>/use` is an allowed custom scope;
 - the domain uses managed login version 2 so Cognito honors the OAuth resource
   indicator and emits the MCP endpoint in the access-token `aud` claim;
 - no users exist;
@@ -84,7 +84,7 @@ locally; tokens and TOTP material are not printed or written to disk.
 Add the displayed key to an authenticator and submit its current six-digit code.
 Whether enrollment succeeds, fails or is interrupted, the wrapper's `finally`
 block redeploys the default closed configuration and verifies that the client is
-left with exactly `aws-remote-mcp/use`. If final cleanup cannot be verified, the
+left with exactly `<MCP endpoint>/use`. If final cleanup cannot be verified, the
 command fails loudly and the client configuration must be inspected immediately.
 
 ## Cost boundary

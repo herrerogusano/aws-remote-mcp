@@ -44,6 +44,7 @@ function Get-StackOutput {
 $apiId = Get-StackOutput "DevApiId"
 $stageName = Get-StackOutput "DevStageName"
 $endpoint = Get-StackOutput "DevMcpEndpoint"
+$expectedScope = "$endpoint/use"
 $functionName = Get-StackOutput "DevFunctionName"
 $shutdownArn = Get-StackOutput "SafetyShutdownFunctionArn"
 $schedulerRoleArn = Get-StackOutput "SafetyShutdownSchedulerRoleArn"
@@ -83,7 +84,7 @@ if (
     @($mcpRoute).Count -ne 1 -or
     $mcpRoute.AuthorizationType -ne "JWT" -or
     @($mcpRoute.AuthorizationScopes).Count -ne 1 -or
-    $mcpRoute.AuthorizationScopes[0] -ne "aws-remote-mcp/use" -or
+    $mcpRoute.AuthorizationScopes[0] -ne $expectedScope -or
     (@($routes.Items.RouteKey | Sort-Object) -join "|") -ne ($expectedRoutes -join "|") -or
     @($stages.Items).Count -ne 1 -or
     $stageName -ne '$default' -or
@@ -102,6 +103,7 @@ $authOutputs = $auth.Stacks[0].Outputs
 $poolId = ($authOutputs | Where-Object OutputKey -eq "UserPoolId").OutputValue
 $clientId = ($authOutputs | Where-Object OutputKey -eq "InspectorClientId").OutputValue
 $issuer = ($authOutputs | Where-Object OutputKey -eq "Issuer").OutputValue
+$requiredScope = ($authOutputs | Where-Object OutputKey -eq "RequiredScope").OutputValue
 $gate = ($authOutputs | Where-Object OutputKey -eq "TotpEnrollmentGate").OutputValue
 $client = Invoke-AwsCli @(
     "cognito-idp", "describe-user-pool-client", "--user-pool-id", $poolId,
@@ -113,8 +115,9 @@ $user = Invoke-AwsCli @(
 ) | ConvertFrom-Json
 if (
     $gate -ne "false" -or
+    $requiredScope -ne $expectedScope -or
     @($client.UserPoolClient.AllowedOAuthScopes).Count -ne 1 -or
-    $client.UserPoolClient.AllowedOAuthScopes[0] -ne "aws-remote-mcp/use" -or
+    $client.UserPoolClient.AllowedOAuthScopes[0] -ne $expectedScope -or
     $user.UserStatus -ne "CONFIRMED" -or
     @($user.UserMFASettingList) -notcontains "SOFTWARE_TOKEN_MFA" -or
     @($jwtAuthorizer).Count -ne 1 -or
@@ -253,7 +256,7 @@ catch {
     OpenedAtUtc       = [DateTime]::UtcNow.ToString("O")
     AutomaticCloseUtc = $closeAt.ToString("O")
     RequestTripwire   = $RequestThreshold
-    Authentication    = "Cognito JWT with aws-remote-mcp/use"
+    Authentication    = "Cognito JWT with $expectedScope"
     ConcurrencyMode   = if ($UseUnreservedConcurrency) { "unreserved-account-cap-10" } else { "reserved-1" }
     ScheduleName      = $scheduleName
 }

@@ -9,7 +9,7 @@ The remote MCP is an OAuth 2.1 resource server. The offline protected app proves
 - bearer tokens are read only from the `Authorization` header;
 - missing, malformed, invalid, expired, wrong-issuer, wrong-audience, or ID tokens
   receive HTTP 401;
-- a valid token missing `aws-remote-mcp/use` receives HTTP 403;
+- a valid token missing `<MCP resource URI>/use` receives HTTP 403;
 - 401/403 `WWW-Authenticate` challenges include the authoritative scope and
   protected-resource metadata URL;
 - protected-resource metadata is public at the RFC 9728 path-specific URI and
@@ -19,7 +19,7 @@ The remote MCP is an OAuth 2.1 resource server. The offline protected app proves
 - inbound bearer tokens are never included in `CallerContext`, tool arguments,
   downstream adapter calls, results, or errors.
 
-The single initial scope is `aws-remote-mcp/use`. It authorizes access to the MCP
+The single initial scope is `<MCP resource URI>/use`. It authorizes access to the MCP
 resource but does not authorize a Telegram send or Trello create: those remain
 separately bound to a short-lived, single-use confirmation.
 
@@ -38,7 +38,7 @@ The selected first production-shaped profile is:
 ```text
 MCP Inspector CLI/TUI with a pre-registered public client ID
   -> Cognito authorization code + PKCE
-  -> audience-bound access token with aws-remote-mcp/use
+  -> audience-bound access token with <MCP resource URI>/use
   -> API Gateway HTTP API JWT authorizer
   -> Lambda caller normalization
 ```
@@ -57,7 +57,7 @@ application, so the bearer cannot enter tool code or application logging.
 The app client has no secret, uses only the authorization-code flow, and permits
 the Inspector native callback `http://127.0.0.1:6276/oauth/callback`. Access
 tokens last five minutes and must contain both the endpoint audience and
-`aws-remote-mcp/use`.
+`<MCP resource URI>/use`.
 
 ## Client registration limitation
 

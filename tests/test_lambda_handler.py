@@ -15,6 +15,7 @@ API_HOST = "example.execute-api.eu-west-1.amazonaws.com"
 PROTOCOL_VERSION = "2026-07-28"
 ISSUER = "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_example"
 RESOURCE = f"https://{API_HOST}/mcp"
+REQUIRED_SCOPE = f"{RESOURCE}/use"
 
 
 @pytest.fixture(autouse=True)
@@ -94,10 +95,10 @@ def http_api_event(
                         "iss": ISSUER,
                         "aud": RESOURCE,
                         "sub": "test-subject",
-                        "scope": "aws-remote-mcp/use",
+                        "scope": REQUIRED_SCOPE,
                         "token_use": "access",
                     },
-                    "scopes": ["aws-remote-mcp/use"],
+                    "scopes": [REQUIRED_SCOPE],
                 }
             },
             "stage": "$default",
@@ -190,7 +191,7 @@ def test_gateway_serves_public_protected_resource_metadata(
     assert response["statusCode"] == 200
     assert metadata["resource"] == RESOURCE
     assert metadata["authorization_servers"] == [ISSUER]
-    assert metadata["scopes_supported"] == ["aws-remote-mcp/use"]
+    assert metadata["scopes_supported"] == [REQUIRED_SCOPE]
     assert metadata["bearer_methods_supported"] == ["header"]
 
 

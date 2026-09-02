@@ -34,6 +34,7 @@ $app = aws cloudformation describe-stacks `
   --output json | ConvertFrom-Json
 $apiId = ($app.Stacks[0].Outputs | Where-Object OutputKey -eq 'DevApiId').OutputValue
 $audience = "https://$apiId.execute-api.eu-west-1.amazonaws.com/mcp"
+$requiredScope = "$audience/use"
 
 sam deploy `
   --stack-name aws-remote-mcp-dev `
@@ -44,6 +45,7 @@ sam deploy `
     Environment=dev `
     CognitoIssuer=$issuer `
     McpTokenAudience=$audience `
+    McpRequiredScope=$requiredScope `
   --no-confirm-changeset `
   --no-fail-on-empty-changeset
 ```
@@ -63,7 +65,7 @@ Do not open the endpoint as part of the closed-stack deployment.
 The opener performs no billable Cost Explorer query. It creates an auto-deleting
 AWS Scheduler deadline and a CloudWatch request alarm before enabling anything.
 The MCP route requires a Cognito access token with the exact endpoint audience
-and `aws-remote-mcp/use` scope. The RFC 9728 metadata route is public only while
+and `<MCP endpoint>/use` scope. The RFC 9728 metadata route is public only while
 the whole API endpoint is enabled.
 
 ```powershell

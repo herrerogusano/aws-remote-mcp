@@ -19,7 +19,13 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from aws_remote_mcp.core.models import CallerContext
 
-MCP_USE_SCOPE = "aws-remote-mcp/use"
+MCP_USE_SCOPE_SUFFIX = "/use"
+
+
+def mcp_use_scope(resource_server_url: str) -> str:
+    """Return the only scope valid for the canonical MCP resource."""
+
+    return f"{resource_server_url.rstrip('/')}{MCP_USE_SCOPE_SUFFIX}"
 
 
 class CallerNormalizationError(RuntimeError):
@@ -30,7 +36,14 @@ class CallerNormalizationError(RuntimeError):
 class AuthorizationConfig:
     issuer_url: str
     resource_server_url: str
-    required_scopes: tuple[str, ...] = (MCP_USE_SCOPE,)
+    required_scopes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        expected = (mcp_use_scope(self.resource_server_url),)
+        if not self.required_scopes:
+            object.__setattr__(self, "required_scopes", expected)
+        elif self.required_scopes != expected:
+            raise ValueError("Required scope must be bound to the MCP resource URL.")
 
     def sdk_settings(self) -> AuthSettings:
         return AuthSettings(
@@ -179,7 +192,7 @@ def valid_test_access_token(
     audience: str,
     subject: str = "test-subject",
     client_id: str = "test-client",
-    scopes: tuple[str, ...] = (MCP_USE_SCOPE,),
+    scopes: tuple[str, ...] | None = None,
     expires_at: int | None = None,
 ) -> AccessToken:
     """Build deterministic validated token metadata without decoding a JWT."""
@@ -187,7 +200,7 @@ def valid_test_access_token(
     return AccessToken(
         token=token,
         client_id=client_id,
-        scopes=list(scopes),
+        scopes=list(scopes if scopes is not None else (mcp_use_scope(audience),)),
         expires_at=expires_at or int(time()) + 300,
         resource=audience,
         subject=subject,

@@ -50,7 +50,8 @@ def test_inspector_client_is_public_pkce_only_and_short_lived() -> None:
     assert "AllowedOAuthFlows:\n        - code" in template
     assert "client_credentials" not in template
     assert "implicit" not in template
-    assert "aws-remote-mcp/use" in template
+    assert "Identifier: !Ref McpResourceUri" in template
+    assert template.count('!Sub "${McpResourceUri}/use"') == 2
     assert "aws.cognito.signin.user.admin" in template
     assert "TotpEnrollmentActive" in template
     assert "TotpEnrollmentGate:" in template

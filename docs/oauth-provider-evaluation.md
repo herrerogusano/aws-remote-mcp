@@ -27,7 +27,8 @@ MCP Inspector CLI/TUI
 
 The resource URI is the exact deployed MCP endpoint. Cognito receives it in the
 OAuth `resource` parameter and places it in the access-token `aud` claim. The
-custom scope remains `aws-remote-mcp/use`. API Gateway must require both the
+resource-server identifier is the same URI, so the custom scope is
+`<MCP resource URI>/use`. API Gateway must require both the
 Cognito issuer/audience and this scope so an ID token cannot satisfy the route.
 
 ## Cost and abuse posture
