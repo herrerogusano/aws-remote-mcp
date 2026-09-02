@@ -20,8 +20,9 @@ rotation and mandatory TOTP. Its issuer, exact audience and required custom scop
 are connected to the still-closed API through a JWT authorizer. One
 administrator-created validation identity was added on 2026-09-01
 with delivery suppressed and no email or phone attributes. Its first-login
-password change is complete; TOTP enrollment remains pending and has a local,
-fail-closed procedure that does not open the API.
+password change and software-token MFA enrollment are complete. Enrollment was
+performed locally without opening the API, and the temporary Cognito scope was
+removed afterward.
 
 ## Deployment posture
 
@@ -62,6 +63,5 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Complete the separately gated local TOTP enrollment.
-API Gateway is JWT-protected and disabled. TOTP enrollment is the next local
-action; opening a bounded validation window remains a later independent gate.
+Run the separately gated, bounded MCP Inspector validation. API Gateway remains
+JWT-protected and disabled until that explicit validation window opens.

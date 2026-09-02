@@ -85,8 +85,8 @@ an explicit TOTP enrollment parameter that is closed by default.
 ## Deployment boundary
 
 The normal local runner remains loopback-only and unprotected for development.
-The Cognito foundation and closed JWT route exist, but TOTP enrollment and any
-remote opening remain independent deployment gates.
+The Cognito foundation, software-token MFA and closed JWT route exist. Any remote
+opening remains an independent deployment gate.
 
 ## Sources
 
