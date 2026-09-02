@@ -13,17 +13,18 @@ from starlette.testclient import TestClient
 
 from aws_remote_mcp.http_server import create_protected_app
 from aws_remote_mcp.security.authorization import (
-    MCP_USE_SCOPE,
     AuthorizationConfig,
     OfflineJwtVerifier,
     StaticTokenVerifier,
     caller_from_access_token,
+    mcp_use_scope,
     valid_test_access_token,
 )
 
 PROTOCOL_VERSION = "2026-07-28"
 ISSUER = "https://auth.example.com"
 RESOURCE = "https://mcp.example.com/mcp"
+MCP_USE_SCOPE = mcp_use_scope(RESOURCE)
 METADATA_PATH = "/.well-known/oauth-protected-resource/mcp"
 VALID_BEARER = "opaque-valid-test-token"
 
@@ -60,6 +61,18 @@ def modern_request(
 @pytest.fixture
 def authorization() -> AuthorizationConfig:
     return AuthorizationConfig(issuer_url=ISSUER, resource_server_url=RESOURCE)
+
+
+def test_required_scope_is_derived_from_the_resource_uri() -> None:
+    config = AuthorizationConfig(issuer_url=ISSUER, resource_server_url=RESOURCE)
+
+    assert config.required_scopes == (f"{RESOURCE}/use",)
+    with pytest.raises(ValueError, match="bound to the MCP resource URL"):
+        AuthorizationConfig(
+            issuer_url=ISSUER,
+            resource_server_url=RESOURCE,
+            required_scopes=("different-resource/use",),
+        )
 
 
 @pytest.fixture

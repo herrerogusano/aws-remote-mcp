@@ -83,7 +83,7 @@ custom event/protocol bridge.
 
 Expose RFC 9728 metadata and return MCP-aligned bearer challenges. Authentication
 failures are 401; valid tokens with insufficient scope are 403. Challenges name
-the protected-resource metadata URI and `aws-remote-mcp/use` scope.
+the protected-resource metadata URI and `<MCP resource URI>/use` scope.
 
 ## D-013 - Audience-bound access tokens
 
@@ -151,7 +151,7 @@ the API Gateway IAM path.
 Use Cognito Plus as the first authorization server profile and the official MCP
 Inspector CLI/TUI as the controlled validation client. The client is public,
 pre-registered to one exact loopback callback, and uses authorization code with
-S256 PKCE. Tokens require the `aws-remote-mcp/use` scope and the exact MCP URI as
+S256 PKCE. Tokens require the `<MCP resource URI>/use` scope and the exact MCP URI as
 their audience through Cognito resource binding.
 
 Disable self-registration and message-based authentication. Require TOTP, keep
@@ -168,7 +168,7 @@ accept pre-registration.
 
 Replace the temporary IAM route guard with API Gateway's native JWT authorizer.
 Require the Cognito issuer, exact MCP endpoint audience and
-`aws-remote-mcp/use` route scope; the required scope prevents Cognito ID tokens
+`<MCP resource URI>/use` route scope; the required scope prevents Cognito ID tokens
 from satisfying the route. Keep RFC 9728 metadata public but expose no other
 unauthenticated application route.
 
@@ -208,3 +208,14 @@ Lambda rather than weakening the contract to client-ID-only validation.
 Use Cognito managed login version 2 with a Cognito-provided default branding
 style. This changes only the existing authentication UI resources and preserves
 the same Plus tier, public PKCE client, callback, scopes, MFA and token lifetime.
+
+## D-022 - Cognito resource identifier and custom scope share the MCP URI
+
+Cognito managed login rejects resource-bound authorization when a custom scope
+belongs to a different resource-server identifier. Use the canonical MCP
+endpoint as the Cognito resource-server identifier and derive the sole custom
+scope as `<MCP endpoint>/use`.
+
+Deploy this scope atomically across the Cognito app client, RFC 9728 metadata,
+API Gateway route authorizer, validation tooling and Lambda's defensive claim
+check. Do not keep a project-name scope beside a URL resource indicator.

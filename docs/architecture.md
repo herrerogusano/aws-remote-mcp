@@ -90,4 +90,4 @@ metadata. A challenge middleware adds the operation's authoritative scope to
 Validated token data becomes only `CallerContext(issuer, subject, scopes)` before
 entering application services. The bearer token remains inside the HTTP auth
 boundary and is not a downstream credential. The initial MCP access scope is
-`aws-remote-mcp/use`; confirmation is still independently required for writes.
+`<MCP resource URI>/use`; confirmation is still independently required for writes.

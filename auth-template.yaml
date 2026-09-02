@@ -69,7 +69,7 @@ Resources:
     Type: AWS::Cognito::UserPoolResourceServer
     Properties:
       UserPoolId: !Ref AuthUserPool
-      Identifier: aws-remote-mcp
+      Identifier: !Ref McpResourceUri
       Name: AWS Remote MCP
       Scopes:
         - ScopeName: use
@@ -88,7 +88,7 @@ Resources:
       AllowedOAuthFlows:
         - code
       AllowedOAuthScopes:
-        - aws-remote-mcp/use
+        - !Sub "${McpResourceUri}/use"
         - !If
           - TotpEnrollmentActive
           - aws.cognito.signin.user.admin
@@ -146,7 +146,7 @@ Outputs:
     Value: !Ref McpResourceUri
   RequiredScope:
     Description: Initial least-privilege MCP scope.
-    Value: aws-remote-mcp/use
+    Value: !Sub "${McpResourceUri}/use"
   TotpEnrollmentGate:
     Description: Whether the temporary Cognito TOTP enrollment scope is enabled.
     Value: !Ref TotpEnrollmentEnabled
