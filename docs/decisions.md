@@ -219,3 +219,23 @@ scope as `<MCP endpoint>/use`.
 Deploy this scope atomically across the Cognito app client, RFC 9728 metadata,
 API Gateway route authorizer, validation tooling and Lambda's defensive claim
 check. Do not keep a project-name scope beside a URL resource indicator.
+
+## D-023 - Two-call bounded AWS inventory
+
+Implement the first real AWS inventory as one fixed adapter operation over
+Lambda `ListFunctions` and API Gateway v2 `GetApis` in `eu-west-1`. Each tool
+execution makes exactly one non-paginated request per service, requests no more
+than ten resources per service and configures the SDK for no retries. Caller
+arguments cannot select services, regions, operations, pagination or limits.
+
+Permit only `lambda:ListFunctions` with `aws:RequestedRegion=eu-west-1` and
+`apigateway:GET` on the regional `/apis` collection. The Lambda list action does
+not support resource-level permissions, so its unavoidable `Resource: "*"` is
+isolated in a statement containing no other action and constrained by region.
+Do not attach AWS managed read-only policies.
+
+Return only resource names, type and a small allowlist of runtime/protocol state.
+Discard ARNs, account IDs, API IDs, endpoints, environment variables, tags,
+pagination tokens and raw SDK errors. Partial failures are sanitized and all
+request/resource counters are explicit. The deployed closed state is unchanged
+until a separate IAM and DEV deployment approval is granted.

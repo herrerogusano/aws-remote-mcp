@@ -12,12 +12,32 @@ uv run ruff check .
 uv run mypy
 uv run pytest
 sam validate --lint --region eu-west-1
-sam build --beta-features
+sam build --template-file template.yaml `
+  --build-dir .aws-sam/build-current `
+  --beta-features
 ```
 
-The template accepts only `Environment=dev`. It needs no secrets and exposes no
-real AWS inventory or external write tools. The Cognito stack must already exist
-because its exact issuer and the existing API identifier are deployment inputs.
+The template accepts only `Environment=dev`. It needs no secrets and adds only
+the two inventory reads documented in `docs/aws-inventory.md`; it exposes no
+external write tools. The Cognito stack must already exist because its exact
+issuer and the existing API identifier are deployment inputs.
+
+Before deployment, inspect `.aws-sam/build-current/template.yaml` and require the
+`$default` stage, all three expected routes, `McpRequiredScope` and the two exact
+inventory IAM statements. Always name this fresh generated template explicitly;
+an implicit `sam deploy` can reuse a stale `.aws-sam/build/template.yaml`.
+
+## Inventory IAM/deployment gate
+
+The next closed deployment changes the MCP execution role. It adds only:
+
+- `lambda:ListFunctions` on `Resource: "*"`, because AWS provides no resource
+  type for this list action, constrained by `aws:RequestedRegion=eu-west-1`;
+- `apigateway:GET` on the exact regional `/apis` collection ARN.
+
+It adds no resource, route, secret, write permission or persistent-cost service.
+The API and Lambda remain disabled during deployment. This role change still
+requires explicit approval before running the command below.
 
 ## Approved closed deployment
 
@@ -37,6 +57,7 @@ $audience = "https://$apiId.execute-api.eu-west-1.amazonaws.com/mcp"
 $requiredScope = "$audience/use"
 
 sam deploy `
+  --template-file .aws-sam/build-current/template.yaml `
   --stack-name aws-remote-mcp-dev `
   --region eu-west-1 `
   --resolve-s3 `
@@ -79,7 +100,7 @@ reduced-quota account cannot allocate a reservation; it refuses to proceed
 unless both Service Quotas and Lambda account settings report a regional cap and
 unreserved pool of exactly 10. This mode also refuses a request tripwire above
 15. Call only `tools/list`,
-`diagnostico`, and `listar_recursos_aws_sintetico`, then close immediately:
+`diagnostico`, and `listar_inventario_aws`, then close immediately:
 
 ```powershell
 .\scripts\close-dev-window.ps1
@@ -98,8 +119,10 @@ command:
 
 It performs all closed-state, quota and MFA preflights, prepares the pinned
 Inspector before opening AWS, uses a private temporary OAuth store, opens at
-most five minutes with a 15-request tripwire, runs only tool discovery and the
-two safe synthetic tools, then closes AWS and deletes OAuth state in `finally`.
+most five minutes with a 15-request tripwire, runs only tool discovery, the
+diagnostic and bounded inventory tools, requires exactly two downstream reads
+and no more than 20 returned resources, then closes AWS and deletes OAuth state
+in `finally`.
 After opening, it permits at most two five-second metadata probes and refuses to
 start OAuth until the API Gateway data plane returns the exact MCP resource.
 Do not run the individual opener for this validation; the wrapper owns the whole
@@ -110,14 +133,16 @@ lifecycle.
 If the account quota cannot allocate reserved concurrency one, do not weaken
 unrelated Lambda reservations. The narrower validation keeps API Gateway
 disabled, installs an AWS-side five-minute deadline, performs exactly three
-direct synthetic invocations, and restores concurrency zero in `finally`:
+direct invocations including the two-read bounded inventory call, and restores
+concurrency zero in `finally`:
 
 ```powershell
 .\scripts\validate-direct-lambda.ps1
 ```
 
-This proves the deployed Lambda/MCP contract but does not claim to prove the
-API Gateway IAM data path. That remains a separate validation decision.
+This proves the deployed Lambda/MCP and execution-role contract but does not
+claim to prove the API Gateway JWT data path. That remains a separate validation
+decision.
 
 ## Expected resources
 
@@ -130,7 +155,8 @@ API Gateway IAM data path. That remains a separate validation decision.
 - an idle safety-shutdown Lambda and logs;
 - a safety SNS topic and exact topic policy;
 - a dedicated Scheduler group for isolated one-time shutdown schedules;
-- three least-privilege IAM roles: MCP execution, shutdown execution, scheduler;
+- three least-privilege IAM roles: MCP execution with two inventory reads,
+  shutdown execution, scheduler;
 - deployment artifacts in the existing SAM-managed regional S3 bucket.
 
 Only during a validation window, one auto-deleting Scheduler schedule and one
