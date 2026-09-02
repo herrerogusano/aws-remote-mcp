@@ -43,6 +43,10 @@ removed afterward.
   minimal request for 11 because its quota API accepts only values above the
   standard 1,000; the Inspector wrapper therefore permits unreserved execution
   only while the account cap remains exactly 10.
+- The independent five-minute shutdown path was exercised on 2026-09-02. The
+  authentication callback timed out without remote MCP calls; AWS restored the
+  disabled API, concurrency zero, no alarm and no remaining schedule at the
+  deadline.
 - No temporary alarm or automatic-close schedule is active while closed.
 - All three execution roles have only inline, resource-specific policies and no
   attached managed policy.
@@ -67,5 +71,6 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Run the separately gated, bounded MCP Inspector validation. API Gateway remains
+Run the separately gated, bounded MCP Inspector validation and complete browser
+authentication before its five-minute deadline. API Gateway remains
 JWT-protected and disabled until that explicit validation window opens.
