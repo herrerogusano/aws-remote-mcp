@@ -182,3 +182,18 @@ well-known metadata URI can follow the standard host-root insertion rule without
 a stage prefix. This supersedes only the temporary authorization and named-stage
 parts of D-016; endpoint disablement, zero concurrency, throttling and independent
 shutdown controls remain unchanged.
+
+## D-020 - Account-cap fallback for the remote validation window
+
+The account's applied regional Lambda concurrency quota is 10. AWS rejects
+reserved concurrency one because the reduced profile must retain all 10 as
+unreserved capacity. A request for the minimal quota 11 was attempted, but the
+Service Quotas API accepts only desired values above the standard quota 1,000;
+do not request 1,001 merely to run one validation.
+
+For the bounded Inspector validation only, remove concurrency zero after all
+shutdown controls are armed and refuse the fallback unless the applied regional
+quota, Lambda account limit and unreserved pool all remain exactly 10. JWT
+authorization, stage throttle 1/1, a tripwire no higher than 15 requests and the
+five-minute independent deadline remain mandatory. Restore reserved concurrency
+zero in every close path.

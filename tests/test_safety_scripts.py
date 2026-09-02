@@ -37,6 +37,17 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     assert "ThrottlingRateLimit -ne 1" in script
     assert "Refusing to overlap or overwrite an existing validation window" in script
     assert "The bounded window did not reach its exact open state" in script
+    assert "[switch]$UseUnreservedConcurrency" in script
+    assert '"lambda", "delete-function-concurrency"' in script
+    assert '"--quota-code", "L-B99A9384"' in script
+    assert "$quota.Quota.Value -ne 10" in script
+    assert '"lambda", "get-account-settings"' in script
+    assert "$accountSettings.AccountLimit.ConcurrentExecutions -ne 10" in script
+    assert (
+        "$accountSettings.AccountLimit.UnreservedConcurrentExecutions -ne 10" in script
+    )
+    assert "$RequestThreshold -gt 15" in script
+    assert "unreserved-account-cap-10" in script
     assert '"ce", "get-cost-and-usage"' not in script
 
 
@@ -96,6 +107,7 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert prepare < open_window < inspector
     assert "@modelcontextprotocol/inspector@2.4.0" in script
     assert "-RequestThreshold 15" in script
+    assert "-UseUnreservedConcurrency" in script
     assert "SOFTWARE_TOKEN_MFA" in script
     assert 'AuthorizationType -ne "JWT"' in script
     assert 'AuthorizationScopes[0] -ne "aws-remote-mcp/use"' in script

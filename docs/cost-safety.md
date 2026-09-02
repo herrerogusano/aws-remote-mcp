@@ -32,18 +32,22 @@ Opening a window requires all of these checks in order:
 1. A one-time AWS-side shutdown is created in a dedicated schedule group and
    auto-deletes afterward.
 2. A temporary alarm is armed at 20 API requests in one minute.
-3. Lambda concurrency becomes one.
+3. Lambda is enabled. Reserved concurrency one is preferred; the reviewed
+   Inspector fallback permits only the regional account cap of exactly 10 when
+   AWS's reduced-account quota cannot allocate a reservation.
 4. Only then is the default API endpoint enabled, for at most five minutes.
 
 The close path disables the API before stopping Lambda and attempts all cleanup
 actions even if one fails. Manual closure and the independent AWS-side deadline
 are redundant.
 
-At 128 MB, one continuously busy Lambda for five minutes consumes at most 37.5
-GB-seconds, approximately $0.000625 at the published first-tier example rate,
-before any free tier. At the configured API target, five minutes is roughly 300
-requests ($0.0003 at $1/million), while the alarm should close substantially
-earlier. These are estimates, not billing guarantees.
+At 128 MB, the preferred single-concurrency mode consumes at most 37.5 GB-seconds
+over five continuously busy minutes. Under the account-cap-10 fallback, the
+conservative all-slots-busy envelope is 375 GB-seconds, approximately $0.00625
+at the published first-tier example rate, before any free tier. At the configured
+API target, five minutes is roughly 300 requests ($0.0003 at $1/million), while
+the alarm should close substantially earlier. These are estimates, not billing
+guarantees.
 
 ## Controls intentionally not used
 

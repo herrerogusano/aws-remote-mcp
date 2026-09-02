@@ -71,7 +71,12 @@ the whole API endpoint is enabled.
 ```
 
 The maximum window is five minutes. The alarm invokes the safety shutdown after
-20 requests in one minute. Lambda concurrency is one. Call only `tools/list`,
+20 requests in one minute. The generic opener prefers reserved concurrency one.
+The Inspector wrapper uses the reviewed unreserved fallback because this
+reduced-quota account cannot allocate a reservation; it refuses to proceed
+unless both Service Quotas and Lambda account settings report a regional cap and
+unreserved pool of exactly 10. This mode also refuses a request tripwire above
+15. Call only `tools/list`,
 `diagnostico`, and `listar_recursos_aws_sintetico`, then close immediately:
 
 ```powershell
@@ -89,11 +94,12 @@ command:
 .\scripts\validate-inspector-window.ps1
 ```
 
-It performs all closed-state and MFA preflights, prepares the pinned Inspector
-before opening AWS, uses a private temporary OAuth store, opens at most five
-minutes with a 15-request tripwire, runs only tool discovery and the two safe
-synthetic tools, then closes AWS and deletes OAuth state in `finally`. Do not run
-the individual opener for this validation; the wrapper owns the whole lifecycle.
+It performs all closed-state, quota and MFA preflights, prepares the pinned
+Inspector before opening AWS, uses a private temporary OAuth store, opens at
+most five minutes with a 15-request tripwire, runs only tool discovery and the
+two safe synthetic tools, then closes AWS and deletes OAuth state in `finally`.
+Do not run the individual opener for this validation; the wrapper owns the whole
+lifecycle.
 
 ## API-closed Lambda validation
 

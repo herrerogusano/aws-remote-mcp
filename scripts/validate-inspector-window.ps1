@@ -182,7 +182,8 @@ $cleanupFailures = [Collections.Generic.List[string]]::new()
 try {
     $env:MCP_STORAGE_DIR = $resolvedStorage
     $env:MCP_AUTO_OPEN_ENABLED = "true"
-    & $openScript -WindowMinutes 5 -RequestThreshold 15 -StackName $AppStack -Region $Region
+    & $openScript -WindowMinutes 5 -RequestThreshold 15 `
+        -StackName $AppStack -Region $Region -UseUnreservedConcurrency
 
     & npx --offline --yes $inspectorPackage --cli `
         --server-url $endpoint --transport http `

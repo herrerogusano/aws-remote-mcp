@@ -7,6 +7,7 @@ param(
     [string]$StackName = "aws-remote-mcp-dev",
     [string]$AuthStackName = "aws-remote-mcp-auth-dev",
     [string]$Username = "portfolio-admin",
+    [switch]$UseUnreservedConcurrency,
     [string]$Region = "eu-west-1"
 )
 
@@ -140,6 +141,31 @@ if (
     throw "Refusing to overlap or overwrite an existing validation window"
 }
 
+if ($UseUnreservedConcurrency) {
+    if ($RequestThreshold -gt 15) {
+        throw "Unreserved fallback requires a request tripwire of 15 or lower"
+    }
+    $quota = Invoke-AwsCli @(
+        "service-quotas", "get-service-quota",
+        "--service-code", "lambda",
+        "--quota-code", "L-B99A9384",
+        "--region", $Region,
+        "--output", "json"
+    ) | ConvertFrom-Json
+    $accountSettings = Invoke-AwsCli @(
+        "lambda", "get-account-settings",
+        "--region", $Region,
+        "--output", "json"
+    ) | ConvertFrom-Json
+    if (
+        $quota.Quota.Value -ne 10 -or
+        $accountSettings.AccountLimit.ConcurrentExecutions -ne 10 -or
+        $accountSettings.AccountLimit.UnreservedConcurrentExecutions -ne 10
+    ) {
+        throw "Unreserved fallback requires the reviewed regional concurrency cap of 10"
+    }
+}
+
 $closeAt = [DateTime]::UtcNow.AddMinutes($WindowMinutes)
 $scheduleName = "aws-remote-mcp-dev-auto-close-$($closeAt.ToString('yyyyMMddHHmmss'))"
 $target = "Arn=$shutdownArn,RoleArn=$schedulerRoleArn,Input='{}'"
@@ -176,12 +202,21 @@ Invoke-AwsCli @(
 ) | Out-Null
 
 try {
-    Invoke-AwsCli @(
-        "lambda", "put-function-concurrency",
-        "--function-name", $functionName,
-        "--reserved-concurrent-executions", "1",
-        "--region", $Region
-    ) | Out-Null
+    if ($UseUnreservedConcurrency) {
+        Invoke-AwsCli @(
+            "lambda", "delete-function-concurrency",
+            "--function-name", $functionName,
+            "--region", $Region
+        ) | Out-Null
+    }
+    else {
+        Invoke-AwsCli @(
+            "lambda", "put-function-concurrency",
+            "--function-name", $functionName,
+            "--reserved-concurrent-executions", "1",
+            "--region", $Region
+        ) | Out-Null
+    }
     Invoke-AwsCli @(
         "apigatewayv2", "update-api",
         "--api-id", $apiId,
@@ -196,10 +231,13 @@ try {
         "lambda", "get-function-concurrency", "--function-name", $functionName,
         "--region", $Region, "--output", "json"
     ) | ConvertFrom-Json
-    if (
-        $openedApi.DisableExecuteApiEndpoint -or
+    $unexpectedConcurrency = if ($UseUnreservedConcurrency) {
+        $null -ne $openedConcurrency.ReservedConcurrentExecutions
+    }
+    else {
         $openedConcurrency.ReservedConcurrentExecutions -ne 1
-    ) {
+    }
+    if ($openedApi.DisableExecuteApiEndpoint -or $unexpectedConcurrency) {
         throw "The bounded window did not reach its exact open state"
     }
 }
@@ -216,5 +254,6 @@ catch {
     AutomaticCloseUtc = $closeAt.ToString("O")
     RequestTripwire   = $RequestThreshold
     Authentication    = "Cognito JWT with aws-remote-mcp/use"
+    ConcurrencyMode   = if ($UseUnreservedConcurrency) { "unreserved-account-cap-10" } else { "reserved-1" }
     ScheduleName      = $scheduleName
 }
