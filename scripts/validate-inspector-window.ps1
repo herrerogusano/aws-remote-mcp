@@ -28,6 +28,66 @@ function Invoke-AwsJson {
     return $result | ConvertFrom-Json
 }
 
+function Get-RedactedJwtContract {
+    param(
+        [Parameter(Mandatory)][string]$StorageDirectory,
+        [Parameter(Mandatory)][string]$ServerUrl,
+        [Parameter(Mandatory)][string]$ExpectedIssuer,
+        [Parameter(Mandatory)][string]$ExpectedAudience,
+        [Parameter(Mandatory)][string]$ExpectedScope,
+        [Parameter(Mandatory)][string]$ExpectedClientId
+    )
+
+    $oauthPath = Join-Path $StorageDirectory "oauth.json"
+    if (-not (Test-Path -LiteralPath $oauthPath -PathType Leaf)) {
+        throw "OAuth state was not written"
+    }
+    $document = Get-Content -LiteralPath $oauthPath -Raw | ConvertFrom-Json
+    $serverProperty = $document.servers.PSObject.Properties |
+        Where-Object Name -eq $ServerUrl
+    if (@($serverProperty).Count -ne 1) {
+        throw "OAuth state does not contain the expected server"
+    }
+    $serverState = $serverProperty.Value
+    $tokens = $serverState.tokens
+    if (-not $tokens.access_token -and $serverState.activeIssuer) {
+        $issuerProperty = $serverState.byIssuer.PSObject.Properties |
+            Where-Object Name -eq $serverState.activeIssuer
+        if (@($issuerProperty).Count -eq 1) {
+            $tokens = $issuerProperty.Value.tokens
+        }
+    }
+    if (-not $tokens.access_token) {
+        throw "OAuth state does not contain an access token"
+    }
+
+    $segments = "$($tokens.access_token)".Split(".")
+    if ($segments.Count -ne 3) {
+        throw "Stored access token is not a JWT"
+    }
+    $payload = $segments[1].Replace("-", "+").Replace("_", "/")
+    switch ($payload.Length % 4) {
+        2 { $payload += "==" }
+        3 { $payload += "=" }
+        1 { throw "Stored access token has invalid base64url padding" }
+    }
+    $claimsJson = [Text.Encoding]::UTF8.GetString(
+        [Convert]::FromBase64String($payload)
+    )
+    $claims = $claimsJson | ConvertFrom-Json
+    $audiences = @($claims.aud)
+    $scopes = @("$($claims.scope)" -split "\s+" | Where-Object { $_ })
+
+    return [pscustomobject]@{
+        IssuerMatches   = $claims.iss -eq $ExpectedIssuer
+        AudienceMatches = $audiences -contains $ExpectedAudience
+        ScopeMatches    = $scopes -contains $ExpectedScope
+        TokenUse        = "$($claims.token_use)"
+        ClientMatches   = $claims.client_id -eq $ExpectedClientId
+        HasExpiry       = $null -ne $claims.exp
+    }
+}
+
 $app = Invoke-AwsJson @(
     "cloudformation", "describe-stacks", "--stack-name", $AppStack,
     "--region", $Region, "--output", "json"
@@ -190,7 +250,20 @@ try {
         --client-id $clientId `
         --callback-url http://127.0.0.1:6276/oauth/callback `
         --method tools/list --strict --format json
-    if ($LASTEXITCODE -ne 0) { throw "Inspector tool discovery failed" }
+    $inspectorExitCode = $LASTEXITCODE
+    if ($inspectorExitCode -ne 0) {
+        try {
+            $contract = Get-RedactedJwtContract `
+                -StorageDirectory $resolvedStorage -ServerUrl $endpoint `
+                -ExpectedIssuer $issuer -ExpectedAudience $endpoint `
+                -ExpectedScope "aws-remote-mcp/use" -ExpectedClientId $clientId
+            Write-Warning "Redacted OAuth JWT contract: $($contract | ConvertTo-Json -Compress)"
+        }
+        catch {
+            Write-Warning "Redacted OAuth JWT contract unavailable: $($_.Exception.Message)"
+        }
+        throw "Inspector tool discovery failed"
+    }
 
     foreach ($toolName in @("diagnostico", "listar_recursos_aws_sintetico")) {
         & npx --offline --yes $inspectorPackage --cli `
