@@ -114,10 +114,19 @@ Resources:
 
   AuthDomain:
     Type: AWS::Cognito::UserPoolDomain
+    DependsOn:
+      - InspectorManagedLoginBranding
     Properties:
       UserPoolId: !Ref AuthUserPool
       Domain: !Ref CognitoDomainPrefix
-      ManagedLoginVersion: 1
+      ManagedLoginVersion: 2
+
+  InspectorManagedLoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    Properties:
+      UserPoolId: !Ref AuthUserPool
+      ClientId: !Ref InspectorPublicClient
+      UseCognitoProvidedValues: true
 
 Outputs:
   UserPoolId:

@@ -40,13 +40,14 @@ aws cloudformation deploy `
 ```
 
 No IAM capability is supplied or required. CloudFormation creates only one user
-pool, one resource server, one public app client and one Cognito-hosted domain.
+pool, one resource server, one public app client, one managed-login branding
+style with Cognito defaults and one Cognito-hosted domain.
 
 ## Verification
 
 Verify through CloudFormation and Cognito control-plane reads:
 
-- all four resources are complete;
+- all five resources are complete;
 - tier is `PLUS`, threat protection is `ENFORCED` and deletion protection is
   `ACTIVE`;
 - self-registration is disabled;
@@ -56,6 +57,8 @@ Verify through CloudFormation and Cognito control-plane reads:
 - refresh-token validity is one day, token revocation is enabled and rotation
   has no grace reuse period;
 - only `aws-remote-mcp/use` is an allowed custom scope;
+- the domain uses managed login version 2 so Cognito honors the OAuth resource
+  indicator and emits the MCP endpoint in the access-token `aud` claim;
 - no users exist;
 - the MCP API is still disabled and Lambda concurrency is still zero.
 
