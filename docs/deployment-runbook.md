@@ -98,6 +98,8 @@ It performs all closed-state, quota and MFA preflights, prepares the pinned
 Inspector before opening AWS, uses a private temporary OAuth store, opens at
 most five minutes with a 15-request tripwire, runs only tool discovery and the
 two safe synthetic tools, then closes AWS and deletes OAuth state in `finally`.
+After opening, it permits at most two five-second metadata probes and refuses to
+start OAuth until the API Gateway data plane returns the exact MCP resource.
 Do not run the individual opener for this validation; the wrapper owns the whole
 lifecycle.
 
