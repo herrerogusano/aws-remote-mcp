@@ -64,15 +64,20 @@ def test_inspector_client_is_public_pkce_only_and_short_lived() -> None:
     assert "RefreshTokenRotation" in template
     assert "Feature: ENABLED" in template
     assert "RetryGracePeriodSeconds: 0" in template
+    assert "ManagedLoginVersion: 2" in template
+    assert "AWS::Cognito::ManagedLoginBranding" in template
+    assert "UseCognitoProvidedValues: true" in template
+    assert "InspectorManagedLoginBranding" in template
 
 
 def test_auth_template_has_only_the_expected_resources() -> None:
     template = template_text()
 
-    assert template.count("    Type: AWS::") == 4
+    assert template.count("    Type: AWS::") == 5
     assert "AWS::Cognito::UserPool\n" in template
     assert "AWS::Cognito::UserPoolClient" in template
     assert "AWS::Cognito::UserPoolResourceServer" in template
     assert "AWS::Cognito::UserPoolDomain" in template
+    assert "AWS::Cognito::ManagedLoginBranding" in template
     for forbidden in ("AWS::Lambda", "AWS::WAF", "AWS::Route53", "AWS::SNS"):
         assert forbidden not in template

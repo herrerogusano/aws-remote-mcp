@@ -47,6 +47,10 @@ removed afterward.
   authentication callback timed out without remote MCP calls; AWS restored the
   disabled API, concurrency zero, no alarm and no remaining schedule at the
   deadline.
+- A subsequent authenticated attempt proved issuer, scope, access-token type
+  and client ID correct, but Cognito's classic hosted UI omitted the requested
+  resource audience. The prepared managed-login v2 update preserves strict
+  endpoint audience checks instead of weakening authorization to client ID.
 - No temporary alarm or automatic-close schedule is active while closed.
 - All three execution roles have only inline, resource-specific policies and no
   attached managed policy.
@@ -54,7 +58,7 @@ removed afterward.
   initialization, two warm invocations at 133 ms and 89 ms, and 108 MB maximum
   memory used out of 128 MB.
 - PROD and continuous deployment do not exist.
-- The separate Cognito auth stack has four complete resources, deletion
+- The separate Cognito auth stack has four deployed resources, deletion
   protection, enforced threat protection, administrator-only user creation and
   exactly one validation identity.
 
@@ -71,6 +75,6 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Run the separately gated, bounded MCP Inspector validation and complete browser
-authentication before its five-minute deadline. API Gateway remains
-JWT-protected and disabled until that explicit validation window opens.
+Deploy the separately reviewed managed-login v2 auth-stack update, verify the
+closed state, then repeat the bounded MCP Inspector validation. API Gateway
+remains JWT-protected and disabled until that explicit validation window opens.

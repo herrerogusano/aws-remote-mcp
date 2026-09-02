@@ -197,3 +197,14 @@ quota, Lambda account limit and unreserved pool all remain exactly 10. JWT
 authorization, stage throttle 1/1, a tripwire no higher than 15 requests and the
 five-minute independent deadline remain mandatory. Restore reserved concurrency
 zero in every close path.
+
+## D-021 - Managed login is required for Cognito resource binding
+
+The classic hosted UI accepted the OAuth `resource` parameter but issued an
+access token without the corresponding `aud` claim, which API Gateway correctly
+rejected. Keep endpoint-specific audience validation at both API Gateway and
+Lambda rather than weakening the contract to client-ID-only validation.
+
+Use Cognito managed login version 2 with a Cognito-provided default branding
+style. This changes only the existing authentication UI resources and preserves
+the same Plus tier, public PKCE client, callback, scopes, MFA and token lifetime.
