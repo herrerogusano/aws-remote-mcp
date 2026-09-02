@@ -72,10 +72,11 @@ are documented in `docs/oauth-provider-evaluation.md` and
 `docs/auth-deployment-runbook.md`. TOTP and JWT route integration are complete;
 any remote opening remains a separate gated action.
 
-The reviewed inventory implementation permits only one non-paginated
+The deployed closed DEV inventory implementation permits only one non-paginated
 `ListFunctions` request and one non-paginated API Gateway v2 `GetApis` request,
-with ten results per service and no SDK retries. Its IAM and deployment remain a
-separate approval; see `docs/aws-inventory.md`.
+with ten results per service and no SDK retries. Its IAM is deployed, but the
+collector has not been invoked; real validation remains a separate approval.
+See `docs/aws-inventory.md`.
 
 ## Safety baseline
 

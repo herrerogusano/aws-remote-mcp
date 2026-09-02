@@ -34,7 +34,7 @@ A failed service becomes a generic warning while the other service can return a
 partial result. If both fail, the result is a sanitized error. Counters report
 exact SDK requests and resources; external-write counters remain zero.
 
-## IAM prepared for review
+## Deployed IAM
 
 The Lambda execution role gains only:
 
@@ -58,8 +58,11 @@ tool call still uses the existing metered API Gateway request and Lambda
 execution. Those remain protected by JWT, throttle 1/1, a 15-request tripwire,
 the five-minute independent deadline and the default closed state.
 
-This implementation and IAM are tested offline only. Deploying the role change
-and invoking the real collector are separate operational gates.
+The implementation and role change were deployed while the API remained
+disabled and Lambda concurrency remained zero on 2026-09-03. The post-deployment
+audit found exactly the two inventory statements, no managed policy, three
+unchanged routes, no temporary alarm or schedule, and no collector invocation.
+Invoking the real collector remains a separate operational gate.
 
 ## Evidence checked 2026-09-02
 
