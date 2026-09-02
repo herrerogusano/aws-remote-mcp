@@ -39,6 +39,10 @@ removed afterward.
 - MCP Lambda verified at reserved concurrency zero, 128 MB and 10-second timeout.
 - Stage throttling verified at rate 1 request/second and burst 1.
 - Five-minute signed validation window has scheduled and volume-based shutdown.
+- The regional Lambda quota is the reduced-account value 10. AWS rejected the
+  minimal request for 11 because its quota API accepts only values above the
+  standard 1,000; the Inspector wrapper therefore permits unreserved execution
+  only while the account cap remains exactly 10.
 - No temporary alarm or automatic-close schedule is active while closed.
 - All three execution roles have only inline, resource-specific policies and no
   attached managed policy.
