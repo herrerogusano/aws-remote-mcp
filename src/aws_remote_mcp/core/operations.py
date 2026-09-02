@@ -57,19 +57,16 @@ class OperationRegistry:
 
 
 def build_default_registry() -> OperationRegistry:
-    """Seed safe operations; reviewed AWS collectors will expand this registry."""
+    """Register only reviewed automatic operations; everything else fails closed."""
 
     return OperationRegistry(
         (
             OperationSpec(
-                "synthetic.aws.list_resources",
+                "aws.inventory.list",
                 OperationClassification.FREE_VERIFIED_READ,
-                "Synthetic offline diagnostic; performs no AWS request.",
-            ),
-            OperationSpec(
-                "aws.sts.get_caller_identity",
-                OperationClassification.FREE_VERIFIED_READ,
-                "AWS identity read; pricing must be re-verified before deployment.",
+                "One non-paginated Lambda ListFunctions read and one API Gateway "
+                "V2 GetApis read; AWS API and pricing references verified "
+                "2026-09-02.",
             ),
             OperationSpec(
                 "aws.cost_explorer.get_cost_and_usage",

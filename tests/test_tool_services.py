@@ -7,7 +7,11 @@ from aws_remote_mcp.adapters.fakes import (
     FakeTelegramAdapter,
     FakeTrelloAdapter,
 )
-from aws_remote_mcp.adapters.protocols import AdapterError
+from aws_remote_mcp.adapters.protocols import (
+    AdapterError,
+    AdapterIssue,
+    AwsAdapterResult,
+)
 from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.core.models import (
     CallerContext,
@@ -50,15 +54,15 @@ def test_safe_aws_operation_uses_fake_adapter(
     adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
 ) -> None:
     aws, _, _ = adapters
-    aws.responses["aws.sts.get_caller_identity"] = {"principal": "fake"}
-
-    result = build_service(adapters).run_aws_operation(
-        "aws.sts.get_caller_identity", {}
+    aws.responses["aws.inventory.list"] = AwsAdapterResult(
+        data={"resources": []}, sdk_requests=2, resources=0
     )
 
+    result = build_service(adapters).run_aws_operation("aws.inventory.list", {})
+
     assert result.status == "ok"
-    assert result.data == {"principal": "fake"}
-    assert result.counters.sdk_requests == 1
+    assert result.data == {"resources": []}
+    assert result.counters.sdk_requests == 2
 
 
 def test_unknown_aws_operation_never_reaches_adapter(
@@ -74,15 +78,36 @@ def test_unknown_aws_operation_never_reaches_adapter(
 def test_oversized_result_is_replaced_with_bounded_error(
     adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
 ) -> None:
-    adapters[0].responses["aws.sts.get_caller_identity"] = {"value": "x" * 100}
+    adapters[0].responses["aws.inventory.list"] = AwsAdapterResult(
+        data={"value": "x" * 100}, sdk_requests=2, resources=0
+    )
 
     result = build_service(adapters, max_result_bytes=32).run_aws_operation(
-        "aws.sts.get_caller_identity", {}
+        "aws.inventory.list", {}
     )
 
     assert result.status == "error"
     assert result.data == {}
     assert result.errors[0].code == "result_too_large"
+
+
+def test_partial_aws_result_preserves_sanitized_warning_and_counters(
+    adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
+) -> None:
+    adapters[0].responses["aws.inventory.list"] = AwsAdapterResult(
+        data={"services": {}},
+        sdk_requests=2,
+        resources=1,
+        status="partial",
+        issues=(AdapterIssue("service_unavailable", "Inventory is incomplete."),),
+    )
+
+    result = build_service(adapters).run_aws_operation("aws.inventory.list", {})
+
+    assert result.status == "partial"
+    assert result.warnings[0].code == "service_unavailable"
+    assert result.counters.sdk_requests == 2
+    assert result.counters.resources == 1
 
 
 def test_telegram_requires_exact_confirmation_and_writes_once(

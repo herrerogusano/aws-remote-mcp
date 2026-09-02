@@ -21,3 +21,7 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     assert "--disable-execute-api-endpoint --region" in script[cleanup:]
     assert "scheduler delete-schedule" in script[cleanup:]
     assert '"ce", "get-cost-and-usage"' not in script
+    assert 'name = "listar_inventario_aws"' in script
+    assert "$inventoryContent.counters.sdk_requests -ne 2" in script
+    assert "$inventoryContent.counters.resources -gt 20" in script
+    assert "$inventoryContent.counters.external_writes_attempted -ne 0" in script

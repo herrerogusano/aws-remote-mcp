@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 from aws_remote_mcp.adapters.protocols import (
     AdapterError,
+    AdapterIssue,
     AwsAdapter,
     TelegramAdapter,
     TrelloAdapter,
@@ -65,12 +66,19 @@ class ToolService:
                 errors=(ToolIssue("operation_blocked", str(error)),),
                 counters=counters,
             )
-        counters.sdk_requests += 1
         try:
             response = self._aws.execute(operation, arguments)
         except AdapterError as error:
             return self._adapter_failure(error, counters)
-        return self._bounded_result(response, counters)
+        counters.sdk_requests = response.sdk_requests
+        counters.resources = response.resources
+        issues = tuple(self._adapter_issue(issue) for issue in response.issues)
+        return self._bounded_result(
+            response.data,
+            counters,
+            status=response.status,
+            issues=issues,
+        )
 
     def prepare_telegram_message(
         self, caller: CallerContext, destination: str, message: str
@@ -172,7 +180,12 @@ class ToolService:
         return self._bounded_result(response, counters)
 
     def _bounded_result(
-        self, data: dict[str, JsonValue], counters: OperationCounters
+        self,
+        data: dict[str, JsonValue],
+        counters: OperationCounters,
+        *,
+        status: str = "ok",
+        issues: tuple[ToolIssue, ...] = (),
     ) -> ToolResult:
         encoded = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode()
         if len(encoded) > self._max_result_bytes:
@@ -186,7 +199,19 @@ class ToolService:
                 ),
                 counters=counters,
             )
+        if status == "partial":
+            return ToolResult(
+                status="partial", data=data, warnings=issues, counters=counters
+            )
+        if status == "error":
+            return ToolResult(
+                status="error", data=data, errors=issues, counters=counters
+            )
         return ToolResult(status="ok", data=data, counters=counters)
+
+    @staticmethod
+    def _adapter_issue(issue: AdapterIssue) -> ToolIssue:
+        return ToolIssue(issue.code, issue.message, retryable=issue.retryable)
 
     @staticmethod
     def _adapter_failure(

@@ -18,6 +18,7 @@ from aws_remote_mcp.adapters.fakes import (
     FakeTelegramAdapter,
     FakeTrelloAdapter,
 )
+from aws_remote_mcp.adapters.protocols import AwsAdapter, AwsAdapterResult
 from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.core.models import CallerContext, ToolIssue, ToolResult
 from aws_remote_mcp.core.operations import build_default_registry
@@ -74,21 +75,41 @@ def serialize_tool_result(result: ToolResult) -> dict[str, Any]:
     return serialized
 
 
-def build_tool_service(*, environment: str = "local") -> ToolService:
-    aws = FakeAwsAdapter(
+def build_tool_service(
+    *, environment: str = "local", aws_adapter: AwsAdapter | None = None
+) -> ToolService:
+    aws = aws_adapter or FakeAwsAdapter(
         responses={
-            "synthetic.aws.list_resources": {
-                "environment": environment,
-                "synthetic": True,
-                "resources": [
-                    {
-                        "service": "lambda",
-                        "resource_type": "AWS::Lambda::Function",
-                        "name": "example-only",
-                        "region": "eu-west-1",
-                    }
-                ],
-            }
+            "aws.inventory.list": AwsAdapterResult(
+                data={
+                    "region": "eu-west-1",
+                    "read_only": True,
+                    "max_resources_per_service": 10,
+                    "fixture": True,
+                    "services": {
+                        "lambda": {
+                            "status": "ok",
+                            "truncated": False,
+                            "resources": [
+                                {
+                                    "service": "lambda",
+                                    "resource_type": "AWS::Lambda::Function",
+                                    "name": "example-only",
+                                    "runtime": "python3.13",
+                                    "architecture": "x86_64",
+                                }
+                            ],
+                        },
+                        "api_gateway_v2": {
+                            "status": "ok",
+                            "truncated": False,
+                            "resources": [],
+                        },
+                    },
+                },
+                sdk_requests=0,
+                resources=1,
+            )
         }
     )
     return ToolService(
@@ -109,18 +130,22 @@ def create_server(
     token_verifier: TokenVerifier | None = None,
     environment: str = "local",
     include_previews: bool = True,
+    aws_adapter: AwsAdapter | None = None,
 ) -> MCPServer:
     """Create a fresh server and isolate mutable fake/confirmation state."""
 
     server = MCPServer(
         SERVER_NAME,
         version=SERVER_VERSION,
-        description="Safe local precursor to an authenticated AWS remote MCP server.",
-        instructions="All current integrations are synthetic or preview-only.",
+        description="Authenticated, cost-aware AWS remote MCP server.",
+        instructions=(
+            "AWS inventory is read-only and bounded; external integrations remain "
+            "preview-only."
+        ),
         auth=auth_settings,
         token_verifier=token_verifier,
     )
-    tools = build_tool_service(environment=environment)
+    tools = build_tool_service(environment=environment, aws_adapter=aws_adapter)
 
     @server.tool(name="diagnostico", structured_output=True)
     def diagnostic() -> dict[str, Any]:
@@ -135,11 +160,11 @@ def create_server(
             "external_side_effects": False,
         }
 
-    @server.tool(name="listar_recursos_aws_sintetico", structured_output=True)
-    def list_synthetic_aws_resources() -> dict[str, Any]:
-        """Return a bounded synthetic inventory; this never contacts AWS."""
+    @server.tool(name="listar_inventario_aws", structured_output=True)
+    def list_aws_inventory() -> dict[str, Any]:
+        """Return bounded read-only Lambda and API Gateway inventory."""
 
-        result = tools.run_aws_operation("synthetic.aws.list_resources", {})
+        result = tools.run_aws_operation("aws.inventory.list", {})
         return serialize_tool_result(result)
 
     if include_previews:
@@ -187,11 +212,14 @@ def create_app(
     allowed_origins: tuple[str, ...] = LOCAL_ALLOWED_ORIGINS,
     environment: str = "local",
     include_previews: bool = True,
+    aws_adapter: AwsAdapter | None = None,
 ) -> Starlette:
     """Build the stateless, JSON-response ASGI application."""
 
     return create_server(
-        environment=environment, include_previews=include_previews
+        environment=environment,
+        include_previews=include_previews,
+        aws_adapter=aws_adapter,
     ).streamable_http_app(
         streamable_http_path=MCP_PATH,
         json_response=True,
@@ -236,6 +264,7 @@ def create_gateway_app(
     authorization: AuthorizationConfig,
     allowed_hosts: tuple[str, ...],
     environment: str,
+    aws_adapter: AwsAdapter,
 ) -> Starlette:
     """Build the API Gateway app with public RFC 9728 metadata.
 
@@ -248,6 +277,7 @@ def create_gateway_app(
         allowed_origins=(),
         environment=environment,
         include_previews=False,
+        aws_adapter=aws_adapter,
     )
     app.routes.extend(
         create_protected_resource_routes(

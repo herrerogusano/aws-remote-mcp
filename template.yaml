@@ -80,6 +80,21 @@ Resources:
                   - logs:CreateLogStream
                   - logs:PutLogEvents
                 Resource: !Sub "${LambdaLogGroup.Arn}:*"
+        - PolicyName: read-bounded-aws-inventory
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListLambdaFunctionsInDeploymentRegion
+                Effect: Allow
+                Action: lambda:ListFunctions
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: ListHttpApisInDeploymentRegion
+                Effect: Allow
+                Action: apigateway:GET
+                Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis"
       Tags:
         - Key: environment
           Value: !Ref Environment
@@ -96,7 +111,7 @@ Resources:
         openapi: "3.0.1"
         info:
           title: !Sub "aws-remote-mcp-${Environment}"
-          description: Safe synthetic MCP endpoint for the DEV environment.
+          description: Bounded read-only AWS inventory for the DEV environment.
           version: "1.0"
         servers:
           - url: "/"
@@ -131,7 +146,7 @@ Resources:
       - LambdaLogGroup
     Properties:
       FunctionName: !Sub "aws-remote-mcp-${Environment}"
-      Description: Safe synthetic Streamable HTTP MCP skeleton.
+      Description: Bounded read-only AWS inventory over Streamable HTTP.
       CodeUri: src/
       Handler: aws_remote_mcp.lambda_handler.handler
       Role: !GetAtt RemoteMcpExecutionRole.Arn

@@ -130,6 +130,10 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert "Temporary validation controls from an earlier window still exist" in script
     assert "--offline --yes" in script
     assert "--stored-auth-only" in script
+    assert '"diagnostico", "listar_inventario_aws"' in script
+    assert "$toolContent.counters.sdk_requests -ne 2" in script
+    assert "$toolContent.counters.resources -gt 20" in script
+    assert "$toolContent.counters.external_writes_attempted -ne 0" in script
     assert "& $closeScript" in finally_block
     assert "Remove-Item -LiteralPath $resolvedStorage -Recurse -Force" in finally_block
     assert '"ce", "get-cost-and-usage"' not in script

@@ -295,12 +295,36 @@ try {
         throw "Inspector tool discovery failed"
     }
 
-    foreach ($toolName in @("diagnostico", "listar_recursos_aws_sintetico")) {
-        & npx --offline --yes $inspectorPackage --cli `
+    foreach ($toolName in @("diagnostico", "listar_inventario_aws")) {
+        $toolOutput = & npx --offline --yes $inspectorPackage --cli `
             --server-url $endpoint --transport http `
             --client-id $clientId --stored-auth-only `
             --method tools/call --tool-name $toolName --format json
         if ($LASTEXITCODE -ne 0) { throw "Inspector call failed: $toolName" }
+        $toolDocument = ($toolOutput -join "`n") | ConvertFrom-Json
+        $toolContent = $toolDocument.result.structuredContent
+        if ($toolName -eq "diagnostico") {
+            if (
+                $toolContent.status -ne "ok" -or
+                $toolContent.external_side_effects -ne $false
+            ) {
+                throw "Inspector diagnostic contract failed"
+            }
+        }
+        else {
+            if (
+                $toolContent.status -ne "ok" -or
+                $toolContent.data.read_only -ne $true -or
+                $toolContent.data.max_resources_per_service -ne 10 -or
+                $toolContent.counters.sdk_requests -ne 2 -or
+                $toolContent.counters.resources -gt 20 -or
+                $toolContent.counters.external_writes_attempted -ne 0 -or
+                $toolContent.counters.external_writes_succeeded -ne 0
+            ) {
+                throw "Inspector bounded AWS inventory contract failed"
+            }
+        }
+        Write-Output $toolOutput
     }
 }
 finally {

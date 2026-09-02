@@ -3,23 +3,28 @@
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
-from aws_remote_mcp.adapters.protocols import AdapterError
+from aws_remote_mcp.adapters.protocols import AdapterError, AwsAdapterResult
 from aws_remote_mcp.core.models import JsonValue
 
 
 @dataclass(slots=True)
 class FakeAwsAdapter:
-    responses: dict[str, dict[str, JsonValue]] = field(default_factory=dict)
+    responses: dict[str, AwsAdapterResult] = field(default_factory=dict)
     failures: dict[str, AdapterError] = field(default_factory=dict)
     calls: list[tuple[str, dict[str, JsonValue]]] = field(default_factory=list)
 
     def execute(
         self, operation: str, arguments: Mapping[str, JsonValue]
-    ) -> dict[str, JsonValue]:
+    ) -> AwsAdapterResult:
         self.calls.append((operation, dict(arguments)))
         if error := self.failures.get(operation):
             raise error
-        return dict(self.responses.get(operation, {"operation": operation}))
+        return self.responses.get(
+            operation,
+            AwsAdapterResult(
+                data={"operation": operation}, sdk_requests=0, resources=0
+            ),
+        )
 
 
 @dataclass(slots=True)

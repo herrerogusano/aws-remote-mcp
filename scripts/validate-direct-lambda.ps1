@@ -207,7 +207,7 @@ try {
 
     $listed = Invoke-DirectMcp -Method "tools/list" -Params @{}
     $toolNames = @($listed.result.tools | ForEach-Object { $_.name } | Sort-Object)
-    if (($toolNames -join ",") -ne "diagnostico,listar_recursos_aws_sintetico") {
+    if (($toolNames -join ",") -ne "diagnostico,listar_inventario_aws") {
         throw "Unexpected tool list."
     }
     $validation["tools_list"] = $toolNames -join ", "
@@ -225,14 +225,23 @@ try {
     }
     $validation["diagnostico"] = "ok; dev; no external side effects"
 
-    $synthetic = Invoke-DirectMcp `
+    $inventory = Invoke-DirectMcp `
         -Method "tools/call" `
-        -Params @{ name = "listar_recursos_aws_sintetico"; arguments = @{} } `
-        -Name "listar_recursos_aws_sintetico"
-    if ($synthetic.result.structuredContent.status -ne "ok") {
-        throw "Synthetic inventory contract failed."
+        -Params @{ name = "listar_inventario_aws"; arguments = @{} } `
+        -Name "listar_inventario_aws"
+    $inventoryContent = $inventory.result.structuredContent
+    if (
+        $inventoryContent.status -ne "ok" -or
+        $inventoryContent.data.read_only -ne $true -or
+        $inventoryContent.data.max_resources_per_service -ne 10 -or
+        $inventoryContent.counters.sdk_requests -ne 2 -or
+        $inventoryContent.counters.resources -gt 20 -or
+        $inventoryContent.counters.external_writes_attempted -ne 0 -or
+        $inventoryContent.counters.external_writes_succeeded -ne 0
+    ) {
+        throw "Bounded AWS inventory contract failed."
     }
-    $validation["synthetic_inventory"] = "ok"
+    $validation["aws_inventory"] = "ok; 2 reads; max 20 resources; no writes"
 }
 finally {
     & aws lambda put-function-concurrency --function-name $functionName --reserved-concurrent-executions 0 --region $Region | Out-Null

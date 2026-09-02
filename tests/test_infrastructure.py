@@ -45,7 +45,7 @@ def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     assert "AWS_IAM" not in template
 
 
-def test_template_iam_is_exactly_log_delivery() -> None:
+def test_template_iam_is_log_delivery_plus_bounded_inventory_reads() -> None:
     template = template_text()
 
     assert "logs:CreateLogStream" in template
@@ -54,6 +54,10 @@ def test_template_iam_is_exactly_log_delivery() -> None:
     assert "lambda:PutFunctionConcurrency" in template
     assert "cloudwatch:DeleteAlarms" in template
     assert "lambda:InvokeFunction" in template
+    assert "lambda:ListFunctions" in template
+    assert "aws:RequestedRegion: !Ref AWS::Region" in template
+    assert "apigateway:GET" in template
+    assert "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis" in template
     assert 'Action: "*"' not in template
     assert "AdministratorAccess" not in template
     assert "PowerUserAccess" not in template

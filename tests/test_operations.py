@@ -33,6 +33,8 @@ def test_only_verified_free_reads_run_automatically(operation: str) -> None:
 
 
 def test_verified_free_read_is_allowed() -> None:
-    spec = build_default_registry().require_automatic("aws.sts.get_caller_identity")
+    spec = build_default_registry().require_automatic("aws.inventory.list")
 
     assert spec.classification is OperationClassification.FREE_VERIFIED_READ
+    assert "ListFunctions" in spec.evidence
+    assert "GetApis" in spec.evidence

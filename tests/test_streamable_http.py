@@ -74,7 +74,7 @@ def test_modern_discovery_and_tool_listing(http_client: TestClient) -> None:
     assert listing.status_code == 200
     assert tool_names == {
         "diagnostico",
-        "listar_recursos_aws_sintetico",
+        "listar_inventario_aws",
         "preparar_mensaje_telegram",
         "preparar_tarjeta_trello",
     }
