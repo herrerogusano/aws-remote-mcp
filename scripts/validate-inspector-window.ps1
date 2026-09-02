@@ -101,6 +101,7 @@ $authOutputs = $auth.Stacks[0].Outputs
 $apiId = ($appOutputs | Where-Object OutputKey -eq "DevApiId").OutputValue
 $functionName = ($appOutputs | Where-Object OutputKey -eq "DevFunctionName").OutputValue
 $endpoint = ($appOutputs | Where-Object OutputKey -eq "DevMcpEndpoint").OutputValue
+$metadataEndpoint = ($appOutputs | Where-Object OutputKey -eq "DevProtectedResourceMetadataEndpoint").OutputValue
 $poolId = ($authOutputs | Where-Object OutputKey -eq "UserPoolId").OutputValue
 $clientId = ($authOutputs | Where-Object OutputKey -eq "InspectorClientId").OutputValue
 $issuer = ($authOutputs | Where-Object OutputKey -eq "Issuer").OutputValue
@@ -109,6 +110,9 @@ $scheduleGroup = ($appOutputs | Where-Object OutputKey -eq "SafetyShutdownSchedu
 
 if ($endpoint -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp") {
     throw "Unexpected MCP endpoint"
+}
+if ($metadataEndpoint -ne "https://$apiId.execute-api.$Region.amazonaws.com/.well-known/oauth-protected-resource/mcp") {
+    throw "Unexpected protected-resource metadata endpoint"
 }
 if ($gate -ne "false") {
     throw "TOTP enrollment scope must be closed before validation"
@@ -244,6 +248,29 @@ try {
     $env:MCP_AUTO_OPEN_ENABLED = "true"
     & $openScript -WindowMinutes 5 -RequestThreshold 15 `
         -StackName $AppStack -Region $Region -UseUnreservedConcurrency
+
+    $dataPlaneReady = $false
+    foreach ($attempt in 1..2) {
+        Start-Sleep -Seconds 5
+        try {
+            $metadataResponse = Invoke-WebRequest `
+                -Uri $metadataEndpoint -Method Get -UseBasicParsing
+            $metadataDocument = $metadataResponse.Content | ConvertFrom-Json
+            if (
+                $metadataResponse.StatusCode -eq 200 -and
+                $metadataDocument.resource -eq $endpoint
+            ) {
+                $dataPlaneReady = $true
+                break
+            }
+        }
+        catch {
+            Write-Warning "API data plane readiness probe $attempt of 2 did not pass"
+        }
+    }
+    if (-not $dataPlaneReady) {
+        throw "API data plane did not reach the exact ready state"
+    }
 
     & npx --offline --yes $inspectorPackage --cli `
         --server-url $endpoint --transport http `

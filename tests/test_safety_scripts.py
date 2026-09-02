@@ -108,6 +108,11 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert "@modelcontextprotocol/inspector@2.4.0" in script
     assert "-RequestThreshold 15" in script
     assert "-UseUnreservedConcurrency" in script
+    assert "DevProtectedResourceMetadataEndpoint" in script
+    assert "foreach ($attempt in 1..2)" in script
+    assert "Start-Sleep -Seconds 5" in script
+    assert "$metadataDocument.resource -eq $endpoint" in script
+    assert "API data plane did not reach the exact ready state" in script
     assert "function Get-RedactedJwtContract" in script
     assert "IssuerMatches" in script
     assert "AudienceMatches" in script
