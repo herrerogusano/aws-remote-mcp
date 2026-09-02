@@ -6,8 +6,9 @@ Region: `eu-west-1`
 
 The application core, local Streamable HTTP transport, authorization contract
 and closed-by-default AWS foundation are implemented. The DEV stack was deployed
-and verified in `eu-west-1` on 2026-08-28. No remote validation session or
-external integration has been activated.
+and verified in `eu-west-1` on 2026-08-28. A bounded remote validation through
+MCP Inspector completed successfully on 2026-09-02, after which every temporary
+AWS and local OAuth control returned to its closed state.
 
 The deployed Lambda/MCP contract was validated directly on 2026-08-28 while the
 API remained disabled. All three bounded synthetic calls succeeded and the
@@ -54,6 +55,13 @@ removed afterward.
 - Managed login then enforced that custom scopes belong to the requested
   resource. The coordinated update now uses the MCP endpoint as Cognito's
   resource-server identifier and derives its sole scope as `<MCP endpoint>/use`.
+- Managed Login v2 is deployed with Cognito-provided branding. A real
+  authorization-code + PKCE + TOTP flow produced an endpoint-bound access token;
+  Inspector discovered both tools and successfully called `diagnostico` and
+  `listar_recursos_aws_sintetico` without external writes.
+- The validation wrapper closed the API and Lambda immediately after success.
+  An independent audit confirmed concurrency zero, no alarm, no schedule, no
+  temporary OAuth directory and no remaining Inspector process.
 - No temporary alarm or automatic-close schedule is active while closed.
 - All three execution roles have only inline, resource-specific policies and no
   attached managed policy.
@@ -61,7 +69,7 @@ removed afterward.
   initialization, two warm invocations at 133 ms and 89 ms, and 108 MB maximum
   memory used out of 128 MB.
 - PROD and continuous deployment do not exist.
-- The separate Cognito auth stack has four deployed resources, deletion
+- The separate Cognito auth stack has five deployed resources, deletion
   protection, enforced threat protection, administrator-only user creation and
   exactly one validation identity.
 
@@ -78,7 +86,6 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Deploy the separately reviewed coordinated resource-scope update to the closed
-auth and application stacks, verify their exact state, then repeat the bounded
-MCP Inspector validation. API Gateway remains disabled until that explicit
-validation window opens.
+Keep DEV closed by default. Any future remote validation must use the same
+bounded wrapper and begin from the independently audited state: API disabled,
+Lambda concurrency zero and no temporary shutdown controls left behind.
