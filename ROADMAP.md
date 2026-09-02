@@ -34,16 +34,19 @@ MCP client
 - Validation identity verified with software-token MFA enabled.
 - Cognito JWT authorizer and public protected-resource metadata deployed with the
   API closed by default.
+- Bounded remote MCP Inspector validation through authorization code, PKCE and
+  TOTP, followed by independently verified cleanup.
+- Offline-complete least-privilege AWS inventory adapter for Lambda and API
+  Gateway v2, pending the separate DEV IAM/deployment approval.
 
 ## Next milestones
 
-1. Validate MCP Inspector through JWT authorization in a separately approved
-   bounded window.
-2. Add least-privilege AWS inventory collectors.
-3. Add confirmed Telegram and Trello actions with separate credentials.
-4. Complete structured audit logging, fault tests and cost review.
-5. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
-6. Publish architecture, threat model, demo and operating runbooks.
+1. Deploy and validate the prepared least-privilege AWS inventory collectors in
+   a separately approved bounded DEV window.
+2. Add confirmed Telegram and Trello actions with separate credentials.
+3. Complete structured audit logging, fault tests and cost review.
+4. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
+5. Publish architecture, threat model, demo and operating runbooks.
 
 ## Success criteria
 

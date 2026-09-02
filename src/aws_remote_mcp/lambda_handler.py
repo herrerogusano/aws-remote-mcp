@@ -7,6 +7,7 @@ from typing import Any
 
 from mangum import Mangum
 
+from aws_remote_mcp.adapters.aws_inventory import AwsInventoryAdapter
 from aws_remote_mcp.http_server import create_gateway_app
 from aws_remote_mcp.security.authorization import AuthorizationConfig
 
@@ -86,6 +87,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         authorization=authorization,
         allowed_hosts=(allowed_host,),
         environment=environment,
+        aws_adapter=AwsInventoryAdapter(region=_required_environment("AWS_REGION")),
     )
     adapter = Mangum(
         app,

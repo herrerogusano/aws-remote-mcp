@@ -41,6 +41,15 @@ The close path disables the API before stopping Lambda and attempts all cleanup
 actions even if one fails. Manual closure and the independent AWS-side deadline
 are redundant.
 
+The prepared AWS inventory tool adds exactly two control-plane reads per tool
+call: one Lambda `ListFunctions` and one API Gateway v2 `GetApis`. It does not
+paginate and configures total SDK attempts to one, so an Inspector validation
+performs two downstream reads, not an unbounded scan. AWS documents Lambda
+charges for function invocations/duration and API Gateway charges for calls
+received by hosted APIs; no separate per-request price is documented for these
+two management reads. The enclosing API Gateway request and Lambda execution
+remain part of the existing bounded-window estimate.
+
 At 128 MB, the preferred single-concurrency mode consumes at most 37.5 GB-seconds
 over five continuously busy minutes. Under the account-cap-10 fallback, the
 conservative all-slots-busy envelope is 375 GB-seconds, approximately $0.00625
@@ -68,3 +77,7 @@ guarantees.
 - https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/
 - https://aws.amazon.com/api-gateway/pricing/
 - https://aws.amazon.com/lambda/pricing/
+- https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html
+- https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis.html
+- https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html
+- https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html

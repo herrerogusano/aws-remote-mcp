@@ -59,6 +59,21 @@ Application results have a common status, data, warnings, sanitized errors,
 counters, and optional confirmation metadata. Adapter output is size-bounded,
 and every execution permits at most one external-write attempt.
 
+## AWS inventory boundary
+
+The first real AWS adapter exposes one fixed operation, `aws.inventory.list`.
+It makes exactly one non-paginated Lambda `ListFunctions` request and one
+non-paginated API Gateway v2 `GetApis` request in `eu-west-1`, with ten results
+per service and SDK retries disabled. The adapter accepts no caller arguments
+and no arbitrary service or operation names.
+
+Only names and a small allowlist of non-sensitive configuration fields cross the
+adapter boundary. ARNs, account IDs, API IDs, endpoints, environment variables,
+tags, pagination tokens and raw exceptions are discarded. One failed service
+produces a sanitized partial result; two failed services produce a sanitized
+error. Local development and CI inject a deterministic fake and make no AWS
+requests.
+
 ## Local MCP transport
 
 The application core is wrapped in the official MCP Python SDK 2.x ASGI app:

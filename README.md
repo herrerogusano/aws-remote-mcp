@@ -4,9 +4,10 @@ A production-shaped, authenticated remote Model Context Protocol server designed
 for AWS Lambda and API Gateway.
 
 The project exposes a local MCP server over current Streamable HTTP and has a
-closed-by-default DEV foundation deployed in AWS. All application AWS data is
-synthetic and Telegram/Trello tools are preview-only; the remote endpoint and
-its compute remain disabled outside a separately approved validation window.
+closed-by-default DEV foundation deployed in AWS. The application includes a
+bounded, read-only AWS inventory adapter while Telegram/Trello tools remain
+preview-only; the remote endpoint and its compute remain disabled outside a
+separately approved validation window.
 
 ## Development
 
@@ -38,11 +39,12 @@ It binds only to `127.0.0.1:8000` and exposes the single MCP endpoint at
 Current-protocol clients can discover and call:
 
 - `diagnostico`
-- `listar_recursos_aws_sintetico`
+- `listar_inventario_aws`
 - `preparar_mensaje_telegram`
 - `preparar_tarjeta_trello`
 
-No execute/send/create tool is exposed in the current development build.
+Local development returns a deterministic fixture for AWS inventory and never
+contacts AWS. No execute/send/create tool is exposed in the current build.
 
 ## Branch and environment model
 
@@ -69,6 +71,11 @@ The selected OAuth/OIDC profile and its deployed single-user Cognito foundation
 are documented in `docs/oauth-provider-evaluation.md` and
 `docs/auth-deployment-runbook.md`. TOTP and JWT route integration are complete;
 any remote opening remains a separate gated action.
+
+The reviewed inventory implementation permits only one non-paginated
+`ListFunctions` request and one non-paginated API Gateway v2 `GetApis` request,
+with ten results per service and no SDK retries. Its IAM and deployment remain a
+separate approval; see `docs/aws-inventory.md`.
 
 ## Safety baseline
 

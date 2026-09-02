@@ -8,6 +8,8 @@ from typing import Any, cast
 
 import pytest
 
+from aws_remote_mcp.adapters.fakes import FakeAwsAdapter
+from aws_remote_mcp.adapters.protocols import AwsAdapterResult
 from aws_remote_mcp.lambda_handler import _validated_gateway_event, handler
 from aws_remote_mcp.security.authorization import AuthorizationConfig
 
@@ -128,7 +130,7 @@ def test_repeated_events_use_fresh_sdk_lifespan(
     for response in (first, second):
         assert response["statusCode"] == 200
         names = {tool["name"] for tool in response_body(response)["result"]["tools"]}
-        assert names == {"diagnostico", "listar_recursos_aws_sintetico"}
+        assert names == {"diagnostico", "listar_inventario_aws"}
 
 
 def test_dev_diagnostic_identifies_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -146,6 +148,44 @@ def test_dev_diagnostic_identifies_environment(monkeypatch: pytest.MonkeyPatch) 
     assert response["statusCode"] == 200
     assert content["environment"] == "dev"
     assert content["external_side_effects"] is False
+
+
+def test_lambda_inventory_uses_injected_bounded_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    fake = FakeAwsAdapter(
+        responses={
+            "aws.inventory.list": AwsAdapterResult(
+                data={"region": "eu-west-1", "services": {}},
+                sdk_requests=2,
+                resources=3,
+            )
+        }
+    )
+
+    def inventory_adapter(*, region: str) -> FakeAwsAdapter:
+        assert region == "eu-west-1"
+        return fake
+
+    monkeypatch.setattr(
+        "aws_remote_mcp.lambda_handler.AwsInventoryAdapter", inventory_adapter
+    )
+    event = http_api_event(
+        "tools/call",
+        params={"name": "listar_inventario_aws", "arguments": {}},
+        name="listar_inventario_aws",
+    )
+
+    response = handler(event, FakeLambdaContext())
+    content = response_body(response)["result"]["structuredContent"]
+
+    assert response["statusCode"] == 200
+    assert content["status"] == "ok"
+    assert content["counters"]["sdk_requests"] == 2
+    assert content["counters"]["resources"] == 3
+    assert fake.calls == [("aws.inventory.list", {})]
 
 
 @pytest.mark.parametrize("environment", ["", "prod", "staging"])
