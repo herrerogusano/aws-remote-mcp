@@ -29,7 +29,7 @@ an implicit `sam deploy` can reuse a stale `.aws-sam/build/template.yaml`.
 
 ## Inventory IAM/deployment gate
 
-The next closed deployment changes the MCP execution role. It adds only:
+The inventory closed deployment changes the MCP execution role. It adds only:
 
 - `lambda:ListFunctions` on `Resource: "*"`, because AWS provides no resource
   type for this list action, constrained by `aws:RequestedRegion=eu-west-1`;

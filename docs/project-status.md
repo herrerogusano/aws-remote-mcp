@@ -10,11 +10,11 @@ and verified in `eu-west-1` on 2026-08-28. A bounded remote validation through
 MCP Inspector completed successfully on 2026-09-02, after which every temporary
 AWS and local OAuth control returned to its closed state.
 
-The next application increment is complete offline: a fixed, bounded AWS
+The next application increment is deployed closed: a fixed, bounded AWS
 inventory adapter for Lambda and API Gateway v2, its least-privilege IAM policy,
-fault tests and validation scripts. None of these changes has been deployed;
-the AWS stacks remain at the independently audited closed revision pending an
-explicit IAM/deployment approval.
+fault tests and validation scripts. The closed deployment completed on
+2026-09-03 without invoking the collector. API disablement, concurrency zero,
+JWT routes and all independent shutdown invariants were re-audited afterward.
 
 The deployed Lambda/MCP contract was validated directly on 2026-08-28 while the
 API remained disabled. All three bounded synthetic calls succeeded and the
@@ -80,8 +80,11 @@ removed afterward.
   exactly one validation identity.
 - The prepared inventory operation accepts no arguments, is fixed to
   `eu-west-1`, makes two non-paginated SDK reads with no retries, returns at most
-  20 sanitized resources and performs no writes. Its broader read IAM has not
-  been applied to AWS.
+  20 sanitized resources and performs no writes. Its read IAM is deployed as two
+  isolated statements; the execution role has no managed policies.
+- The inventory deployment changed no route or persistent service. The API is
+  disabled, Lambda concurrency is zero, no alarm/schedule exists and the real
+  collector has not been invoked.
 
 ## Account cost posture
 
@@ -96,6 +99,6 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
-Review the prepared DEV impact for exactly two new read permissions. If
-approved, deploy while closed, verify IAM and fail-closed state, then run one
-bounded Inspector validation of the real inventory and close immediately.
+Review one bounded Inspector validation of the deployed real inventory. It must
+start from the audited closed state, perform exactly two downstream reads,
+return no more than 20 sanitized resources and close immediately.
