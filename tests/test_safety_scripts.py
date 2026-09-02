@@ -108,6 +108,13 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert "@modelcontextprotocol/inspector@2.4.0" in script
     assert "-RequestThreshold 15" in script
     assert "-UseUnreservedConcurrency" in script
+    assert "function Get-RedactedJwtContract" in script
+    assert "IssuerMatches" in script
+    assert "AudienceMatches" in script
+    assert "ScopeMatches" in script
+    assert "ClientMatches" in script
+    assert "Redacted OAuth JWT contract" in script
+    assert "access_token" not in script.split("return [pscustomobject]@{", 1)[1]
     assert "SOFTWARE_TOKEN_MFA" in script
     assert 'AuthorizationType -ne "JWT"' in script
     assert 'AuthorizationScopes[0] -ne "aws-remote-mcp/use"' in script
