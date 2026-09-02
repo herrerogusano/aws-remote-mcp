@@ -67,8 +67,8 @@ remained disabled. See `docs/direct-validation-evidence.md`.
 
 The selected OAuth/OIDC profile and its deployed single-user Cognito foundation
 are documented in `docs/oauth-provider-evaluation.md` and
-`docs/auth-deployment-runbook.md`. TOTP enrollment, JWT route integration and any
-remote opening remain separate gated actions.
+`docs/auth-deployment-runbook.md`. TOTP and JWT route integration are complete;
+any remote opening remains a separate gated action.
 
 ## Safety baseline
 

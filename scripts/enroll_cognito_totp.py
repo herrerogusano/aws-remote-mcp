@@ -113,10 +113,6 @@ class EnrollmentSession:
     def redirect_uri(self) -> str:
         return f"http://{LOOPBACK_HOST}:{self.port}{CALLBACK_PATH}"
 
-    @property
-    def local_origin(self) -> str:
-        return f"http://{LOOPBACK_HOST}:{self.port}"
-
     def authorization_url(self) -> str:
         challenge = base64url(hashlib.sha256(self.verifier.encode("ascii")).digest())
         query = urllib.parse.urlencode(
@@ -209,6 +205,19 @@ def page(title: str, body: str) -> bytes:
     ).encode()
 
 
+def valid_local_request(host: str | None, origin: str | None, port: int) -> bool:
+    """Accept loopback browser variants while the form token provides CSRF proof."""
+
+    allowed_hosts = {f"{LOOPBACK_HOST}:{port}", f"localhost:{port}"}
+    allowed_origins = {
+        None,
+        "null",
+        f"http://{LOOPBACK_HOST}:{port}",
+        f"http://localhost:{port}",
+    }
+    return host in allowed_hosts and origin in allowed_origins
+
+
 def handler_for(session: EnrollmentSession) -> type[BaseHTTPRequestHandler]:
     class EnrollmentHandler(BaseHTTPRequestHandler):
         def log_message(self, _format: str, *_args: object) -> None:
@@ -261,9 +270,8 @@ def handler_for(session: EnrollmentSession) -> type[BaseHTTPRequestHandler]:
                 )
 
         def do_POST(self) -> None:
-            if (
-                self.headers.get("Host") != f"{LOOPBACK_HOST}:{session.port}"
-                or self.headers.get("Origin") != session.local_origin
+            if not valid_local_request(
+                self.headers.get("Host"), self.headers.get("Origin"), session.port
             ):
                 self.send_page(HTTPStatus.FORBIDDEN, page("Invalid origin", ""))
                 return

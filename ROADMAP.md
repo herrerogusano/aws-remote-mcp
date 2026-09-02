@@ -31,19 +31,19 @@ MCP client
 - Administrator-only Cognito validation identity with suppressed messaging.
 - Completed first-login password replacement and fail-closed local TOTP
   enrollment tooling.
+- Validation identity verified with software-token MFA enabled.
 - Cognito JWT authorizer and public protected-resource metadata deployed with the
   API closed by default.
 
 ## Next milestones
 
-1. Complete the validation identity's TOTP enrollment without opening the API.
-2. Validate MCP Inspector through JWT authorization in a separately approved
+1. Validate MCP Inspector through JWT authorization in a separately approved
    bounded window.
-3. Add least-privilege AWS inventory collectors.
-4. Add confirmed Telegram and Trello actions with separate credentials.
-5. Complete structured audit logging, fault tests and cost review.
-6. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
-7. Publish architecture, threat model, demo and operating runbooks.
+2. Add least-privilege AWS inventory collectors.
+3. Add confirmed Telegram and Trello actions with separate credentials.
+4. Complete structured audit logging, fault tests and cost review.
+5. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
+6. Publish architecture, threat model, demo and operating runbooks.
 
 ## Success criteria
 

@@ -149,6 +149,39 @@ def test_wrong_local_form_token_never_reaches_cognito(
         session.verify("123456", "wrong-token")
 
 
+@pytest.mark.parametrize(
+    ("host", "origin"),
+    [
+        ("127.0.0.1:6276", "http://127.0.0.1:6276"),
+        ("127.0.0.1:6276", None),
+        ("127.0.0.1:6276", "null"),
+        ("localhost:6276", "http://localhost:6276"),
+    ],
+)
+def test_local_browser_origin_variants_are_supported(
+    host: str, origin: str | None
+) -> None:
+    module = load_script()
+
+    assert module.valid_local_request(host, origin, 6276) is True
+
+
+@pytest.mark.parametrize(
+    ("host", "origin"),
+    [
+        ("attacker.example", "http://127.0.0.1:6276"),
+        ("127.0.0.1:6276", "https://attacker.example"),
+        ("127.0.0.1:9999", "http://127.0.0.1:9999"),
+    ],
+)
+def test_non_loopback_or_wrong_port_requests_are_rejected(
+    host: str, origin: str | None
+) -> None:
+    module = load_script()
+
+    assert module.valid_local_request(host, origin, 6276) is False
+
+
 def test_verification_attempts_are_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     module = load_script()
     session = module.EnrollmentSession.create(
