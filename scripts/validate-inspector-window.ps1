@@ -11,12 +11,15 @@ $ErrorActionPreference = "Stop"
 $inspectorPackage = "@modelcontextprotocol/inspector@2.4.0"
 $openScript = Join-Path $PSScriptRoot "open-dev-window.ps1"
 $closeScript = Join-Path $PSScriptRoot "close-dev-window.ps1"
+$discoveryScript = Join-Path $PSScriptRoot "inspector-discovery.ps1"
 
-foreach ($requiredPath in @($openScript, $closeScript)) {
+foreach ($requiredPath in @($openScript, $closeScript, $discoveryScript)) {
     if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
         throw "Required file not found: $requiredPath"
     }
 }
+
+. $discoveryScript
 
 function Invoke-AwsJson {
     param([Parameter(Mandatory)][string[]]$Arguments)
@@ -85,6 +88,7 @@ function Get-RedactedJwtContract {
         TokenUse        = "$($claims.token_use)"
         ClientMatches   = $claims.client_id -eq $ExpectedClientId
         HasExpiry       = $null -ne $claims.exp
+        IsUnexpired     = $null -ne $claims.exp -and [double]$claims.exp -gt ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + 30)
     }
 }
 
@@ -249,6 +253,7 @@ $cleanupFailures = [Collections.Generic.List[string]]::new()
 try {
     $env:MCP_STORAGE_DIR = $resolvedStorage
     $env:MCP_AUTO_OPEN_ENABLED = "true"
+    $windowClock = [Diagnostics.Stopwatch]::StartNew()
     & $openScript -WindowMinutes 5 -RequestThreshold 15 `
         -StackName $AppStack -Region $Region -UseUnreservedConcurrency
 
@@ -275,25 +280,31 @@ try {
         throw "API data plane did not reach the exact ready state"
     }
 
-    & npx --offline --yes $inspectorPackage --cli `
-        --server-url $endpoint --transport http `
-        --client-id $clientId `
-        --callback-url http://127.0.0.1:6276/oauth/callback `
-        --method tools/list --strict --format json
-    $inspectorExitCode = $LASTEXITCODE
-    if ($inspectorExitCode -ne 0) {
-        try {
-            $contract = Get-RedactedJwtContract `
-                -StorageDirectory $resolvedStorage -ServerUrl $endpoint `
-                -ExpectedIssuer $issuer -ExpectedAudience $endpoint `
-                -ExpectedScope $expectedScope -ExpectedClientId $clientId
-            Write-Warning "Redacted OAuth JWT contract: $($contract | ConvertTo-Json -Compress)"
-        }
-        catch {
-            Write-Warning "Redacted OAuth JWT contract unavailable: $($_.Exception.Message)"
-        }
-        throw "Inspector tool discovery failed"
+    $discoveryOutput = Invoke-BoundedInspectorDiscovery -InitialAttempt {
+        $output = & npx --offline --yes $inspectorPackage --cli `
+            --server-url $endpoint --transport http `
+            --client-id $clientId `
+            --callback-url http://127.0.0.1:6276/oauth/callback `
+            --method tools/list --strict --format json
+        [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+    } -StoredAttempt {
+        $output = & npx --offline --yes $inspectorPackage --cli `
+            --server-url $endpoint --transport http `
+            --client-id $clientId --stored-auth-only `
+            --method tools/list --strict --format json
+        [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+    } -ReadContract {
+        Get-RedactedJwtContract `
+            -StorageDirectory $resolvedStorage -ServerUrl $endpoint `
+            -ExpectedIssuer $issuer -ExpectedAudience $endpoint `
+            -ExpectedScope $expectedScope -ExpectedClientId $clientId
+    } -CanRetry { $windowClock.Elapsed.TotalSeconds -lt 180 }
+    $discoveryDocument = ($discoveryOutput -join "`n") | ConvertFrom-Json
+    $toolNames = @($discoveryDocument.result.tools | ForEach-Object { $_.name } | Sort-Object)
+    if (($toolNames -join ',') -ne 'diagnostico,listar_inventario_aws') {
+        throw 'Inspector discovered an unexpected tool set'
     }
+    Write-Output $discoveryOutput
 
     foreach ($toolName in @("diagnostico", "listar_inventario_aws")) {
         $toolOutput = & npx --offline --yes $inspectorPackage --cli `

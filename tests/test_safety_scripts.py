@@ -118,7 +118,9 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert "AudienceMatches" in script
     assert "ScopeMatches" in script
     assert "ClientMatches" in script
-    assert "Redacted OAuth JWT contract" in script
+    assert "Invoke-BoundedInspectorDiscovery" in script
+    assert "$windowClock.Elapsed.TotalSeconds -lt 180" in script
+    assert "IsUnexpired" in script
     assert "access_token" not in script.split("return [pscustomobject]@{", 1)[1]
     assert "SOFTWARE_TOKEN_MFA" in script
     assert 'AuthorizationType -ne "JWT"' in script

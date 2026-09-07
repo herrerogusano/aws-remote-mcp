@@ -99,6 +99,15 @@ tier charge to $0.02 per active month.
 
 ## Next decision
 
+On 2026-09-07, real inventory validation stopped after successful OAuth because
+Inspector 2.4.0 attempted to restart an already-started Streamable HTTP transport.
+The redacted token contract passed issuer, audience, scope, client and access-token
+checks. No inventory tool ran. Cleanup independently confirmed API disabled,
+concurrency zero, no alarm/schedule, no OAuth temporary directory and no Inspector
+process. The wrapper now permits one fresh-process, stored-auth-only discovery
+retry for this exact error, after token and elapsed-time checks. This recovery is
+tested offline; real inventory validation is still pending.
+
 Review one bounded Inspector validation of the deployed real inventory. It must
 start from the audited closed state, perform exactly two downstream reads,
 return no more than 20 sanitized resources and close immediately.
