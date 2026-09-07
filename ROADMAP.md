@@ -41,6 +41,10 @@ MCP client
 
 ## Next milestones
 
+The latest real-inventory attempt reached successful OAuth but stopped on an
+Inspector transport lifecycle error. A bounded discovery recovery is prepared
+and tested offline; the first milestone below remains pending.
+
 1. Validate the deployed least-privilege AWS inventory collectors in a
    separately approved bounded DEV window.
 2. Add confirmed Telegram and Trello actions with separate credentials.

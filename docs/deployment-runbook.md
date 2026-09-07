@@ -128,6 +128,13 @@ start OAuth until the API Gateway data plane returns the exact MCP resource.
 Do not run the individual opener for this validation; the wrapper owns the whole
 lifecycle.
 
+For the exact Inspector 2.4.0 already-started transport error after OAuth, the
+wrapper permits one fresh `tools/list --stored-auth-only` process. It first
+checks the stored token contract and remaining validity, and requires fewer than
+180 seconds elapsed since beginning the opening sequence. This may add discovery
+traffic within the same 15-request tripwire; the deadline is never extended.
+Other failures and failed recovery close immediately. Tool calls are not retried.
+
 ## API-closed Lambda validation
 
 If the account quota cannot allocate reserved concurrency one, do not weaken

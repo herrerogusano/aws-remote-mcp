@@ -239,3 +239,19 @@ Discard ARNs, account IDs, API IDs, endpoints, environment variables, tags,
 pagination tokens and raw SDK errors. Partial failures are sanitized and all
 request/resource counters are explicit. The deployed closed state is unchanged
 until a separate IAM and DEV deployment approval is granted.
+
+## D-024 - One fresh Inspector discovery process after OAuth lifecycle failure
+
+Inspector 2.4.0 can report `StreamableHTTPClientTransport already started` after
+completing OAuth. Its installed CLI reconnects after interactive authorization;
+the installed transport rejects a second start, even after close. This behavior
+was reproduced offline. Keep the pinned Inspector and recover only this exact
+error by starting one new CLI process for `tools/list` with `--stored-auth-only`.
+
+Require matching issuer, resource audience, scope, client, access-token type and
+at least 30 seconds of remaining token validity before recovery. These decoded
+claims are a local recovery filter, not signature verification; API Gateway and
+Lambda remain the authorization boundary. Refuse recovery after 180 elapsed
+seconds measured before window opening. Keep the existing five-minute schedule
+and 15-request tripwire, and never retry tool execution. A failure of the fresh
+discovery process closes the window via the existing finally block.
