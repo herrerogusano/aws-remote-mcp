@@ -15,6 +15,11 @@ inventory adapter for Lambda and API Gateway v2, its least-privilege IAM policy,
 fault tests and validation scripts. The closed deployment completed on
 2026-09-03 without invoking the collector. API disablement, concurrency zero,
 JWT routes and all independent shutdown invariants were re-audited afterward.
+Real inventory validation passed on 2026-09-07: tool discovery, diagnostics and
+inventory succeeded through OAuth. Two SDK reads returned seven Lambda functions
+and three API Gateway v2 APIs, with no truncation, warnings, errors or writes.
+The window closed after approximately 35 seconds and cleanup was independently
+verified. No transport recovery retry was needed during this successful run.
 
 The deployed Lambda/MCP contract was validated directly on 2026-08-28 while the
 API remained disabled. All three bounded synthetic calls succeeded and the
@@ -83,8 +88,8 @@ removed afterward.
   20 sanitized resources and performs no writes. Its read IAM is deployed as two
   isolated statements; the execution role has no managed policies.
 - The inventory deployment changed no route or persistent service. The API is
-  disabled, Lambda concurrency is zero, no alarm/schedule exists and the real
-  collector has not been invoked.
+  disabled, Lambda concurrency is zero and no alarm/schedule exists after the
+  successful real collector validation.
 
 ## Account cost posture
 
@@ -106,8 +111,9 @@ checks. No inventory tool ran. Cleanup independently confirmed API disabled,
 concurrency zero, no alarm/schedule, no OAuth temporary directory and no Inspector
 process. The wrapper now permits one fresh-process, stored-auth-only discovery
 retry for this exact error, after token and elapsed-time checks. This recovery is
-tested offline; real inventory validation is still pending.
+tested offline. The subsequent real inventory validation passed without needing
+the recovery branch, so that branch has not been exercised against AWS.
 
-Review one bounded Inspector validation of the deployed real inventory. It must
-start from the audited closed state, perform exactly two downstream reads,
-return no more than 20 sanitized resources and close immediately.
+Prepare the confirmed Telegram and Trello integration milestone offline.
+Credentials, deployment changes and first external writes remain separately
+reviewed operational actions. Keep DEV closed between validation windows.

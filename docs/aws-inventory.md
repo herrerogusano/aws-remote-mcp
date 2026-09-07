@@ -62,7 +62,13 @@ The implementation and role change were deployed while the API remained
 disabled and Lambda concurrency remained zero on 2026-09-03. The post-deployment
 audit found exactly the two inventory statements, no managed policy, three
 unchanged routes, no temporary alarm or schedule, and no collector invocation.
-Invoking the real collector remains a separate operational gate.
+The separately authorized remote validation passed on 2026-09-07: two reads
+returned seven Lambda functions and three API Gateway v2 APIs. Both services
+reported success without truncation; write counters, warnings and errors were
+zero. The window lasted about 35 seconds. Independent cleanup checks confirmed
+API disabled, concurrency zero and no temporary alarm, schedule, OAuth directory
+or Inspector process. Resource names and raw output are not retained as public
+evidence. Future invocations still require an approved bounded window.
 
 ## Evidence checked 2026-09-02
 
