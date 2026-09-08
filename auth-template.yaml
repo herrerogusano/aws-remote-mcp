@@ -1,0 +1,153 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Gated Cognito OAuth foundation for an AWS Remote MCP environment.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  CognitoDomainPrefix:
+    Type: String
+    Description: Globally unique lowercase prefix for the Cognito-hosted domain.
+    AllowedPattern: "^(?!.*(?:aws|amazon|cognito))[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+    ConstraintDescription: >-
+      Use 1-63 lowercase letters, numbers or internal hyphens without the
+      reserved terms aws, amazon or cognito.
+  McpResourceUri:
+    Type: String
+    Description: Exact canonical HTTPS URI of the deployed MCP endpoint.
+    AllowedPattern: "^https://[^?#]+/mcp$"
+  InspectorCallbackUrl:
+    Type: String
+    Default: http://127.0.0.1:6276/oauth/callback
+    AllowedValues:
+      - http://127.0.0.1:6276/oauth/callback
+  TotpEnrollmentEnabled:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "true"
+    Description: Temporary gate for the user self-service scope required by TOTP setup.
+
+Conditions:
+  TotpEnrollmentActive: !Equals [!Ref TotpEnrollmentEnabled, "true"]
+
+Resources:
+  AuthUserPool:
+    Type: AWS::Cognito::UserPool
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      UserPoolName: !Sub "aws-remote-mcp-auth-${Environment}"
+      UserPoolTier: PLUS
+      DeletionProtection: ACTIVE
+      UserPoolAddOns:
+        AdvancedSecurityMode: ENFORCED
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      UsernameConfiguration:
+        CaseSensitive: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 16
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 1
+      MfaConfiguration: "ON"
+      EnabledMfas:
+        - SOFTWARE_TOKEN_MFA
+      UserPoolTags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+  McpResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref AuthUserPool
+      Identifier: !Ref McpResourceUri
+      Name: AWS Remote MCP
+      Scopes:
+        - ScopeName: use
+          ScopeDescription: Connect to the AWS Remote MCP resource.
+
+  InspectorPublicClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn:
+      - McpResourceServer
+    Properties:
+      UserPoolId: !Ref AuthUserPool
+      ClientName: !Sub "aws-remote-mcp-inspector-${Environment}"
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - !Sub "${McpResourceUri}/use"
+        - !If
+          - TotpEnrollmentActive
+          - aws.cognito.signin.user.admin
+          - !Ref AWS::NoValue
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Ref InspectorCallbackUrl
+      DefaultRedirectURI: !Ref InspectorCallbackUrl
+      AccessTokenValidity: 5
+      IdTokenValidity: 5
+      RefreshTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      AuthSessionValidity: 3
+      EnableTokenRevocation: true
+      ExplicitAuthFlows: []
+      RefreshTokenRotation:
+        Feature: ENABLED
+        RetryGracePeriodSeconds: 0
+
+  AuthDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    DependsOn:
+      - InspectorManagedLoginBranding
+    Properties:
+      UserPoolId: !Ref AuthUserPool
+      Domain: !Ref CognitoDomainPrefix
+      ManagedLoginVersion: 2
+
+  InspectorManagedLoginBranding:
+    Type: AWS::Cognito::ManagedLoginBranding
+    Properties:
+      UserPoolId: !Ref AuthUserPool
+      ClientId: !Ref InspectorPublicClient
+      UseCognitoProvidedValues: true
+
+Outputs:
+  UserPoolId:
+    Description: Cognito user pool identifier.
+    Value: !Ref AuthUserPool
+  InspectorClientId:
+    Description: Public pre-registered MCP Inspector client identifier.
+    Value: !Ref InspectorPublicClient
+  Issuer:
+    Description: JWT issuer for API Gateway and MCP protected-resource metadata.
+    Value: !Sub "https://cognito-idp.${AWS::Region}.${AWS::URLSuffix}/${AuthUserPool}"
+  AuthorizationServer:
+    Description: Cognito OAuth authorization-server origin.
+    Value: !Sub "https://${AuthDomain}.auth.${AWS::Region}.amazoncognito.com"
+  McpResource:
+    Description: Canonical resource indicator and required token audience.
+    Value: !Ref McpResourceUri
+  RequiredScope:
+    Description: Initial least-privilege MCP scope.
+    Value: !Sub "${McpResourceUri}/use"
+  TotpEnrollmentGate:
+    Description: Whether the temporary Cognito TOTP enrollment scope is enabled.
+    Value: !Ref TotpEnrollmentEnabled

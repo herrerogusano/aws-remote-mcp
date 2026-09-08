@@ -1,0 +1,445 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Safe closed-by-default AWS Remote MCP environment.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - prod
+  CognitoIssuer:
+    Type: String
+    Description: Exact issuer URL of the dedicated Cognito user pool.
+    AllowedPattern: "^https://cognito-idp\\.eu-west-1\\.amazonaws\\.com/eu-west-1_[A-Za-z0-9]+$"
+  McpTokenAudience:
+    Type: String
+    Description: Exact audience required in access tokens for this MCP endpoint.
+    AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp$"
+  McpRequiredScope:
+    Type: String
+    Description: Exact resource-bound scope required for MCP access.
+    AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp/use$"
+  EnableExternalIntegrations:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "true"
+    Description: Create bounded confirmation state and expose confirmed writes.
+  IntegrationConfigParameterName:
+    Type: String
+    Default: /portfolio/aws-remote-mcp/dev/integrations
+    AllowedPattern: "^/portfolio/aws-remote-mcp/(dev|prod)/[a-z0-9-]+$"
+    Description: Exact Standard SecureString parameter containing integration config.
+
+Conditions:
+  ExternalIntegrationsEnabled: !Equals [!Ref EnableExternalIntegrations, "true"]
+
+Globals:
+  Function:
+    Runtime: python3.13
+    Architectures:
+      - x86_64
+    MemorySize: 128
+    Timeout: 10
+    Tracing: Disabled
+    Environment:
+      Variables:
+        APP_ENVIRONMENT: !Ref Environment
+
+Resources:
+  ApiAccessLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/apigateway/aws-remote-mcp-${Environment}"
+      RetentionInDays: 7
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/aws-remote-mcp-${Environment}"
+      RetentionInDays: 7
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  RemoteMcpExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: write-own-log-streams
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${LambdaLogGroup.Arn}:*"
+        - PolicyName: read-bounded-aws-inventory
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ListLambdaFunctionsInDeploymentRegion
+                Effect: Allow
+                Action: lambda:ListFunctions
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: !Ref AWS::Region
+              - Sid: ListHttpApisInDeploymentRegion
+                Effect: Allow
+                Action: apigateway:GET
+                Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis"
+              - !If
+                - ExternalIntegrationsEnabled
+                - Sid: PersistOnlyMcpConfirmations
+                  Effect: Allow
+                  Action:
+                    - dynamodb:PutItem
+                    - dynamodb:UpdateItem
+                    - dynamodb:GetItem
+                  Resource: !GetAtt ConfirmationTable.Arn
+                - !Ref AWS::NoValue
+              - !If
+                - ExternalIntegrationsEnabled
+                - Sid: ReadOnlyExactIntegrationConfig
+                  Effect: Allow
+                  Action: ssm:GetParameter
+                  Resource: !Sub >-
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${IntegrationConfigParameterName}
+                - !Ref AWS::NoValue
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  RemoteMcpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: "$default"
+      DisableExecuteApiEndpoint: true
+      FailOnWarnings: true
+      DefinitionBody:
+        openapi: "3.0.1"
+        info:
+          title: !Sub "aws-remote-mcp-${Environment}"
+          description: Bounded read-only AWS inventory for the DEV environment.
+          version: "1.0"
+        servers:
+          - url: "/"
+        paths: {}
+      Auth:
+        Authorizers:
+          CognitoJwtAuthorizer:
+            AuthorizationScopes:
+              - !Ref McpRequiredScope
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Ref CognitoIssuer
+              audience:
+                - !Ref McpTokenAudience
+        DefaultAuthorizer: CognitoJwtAuthorizer
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 1
+        ThrottlingRateLimit: 1
+      AccessLogSettings:
+        DestinationArn: !GetAtt ApiAccessLogGroup.Arn
+        Format: !Sub >-
+          {"environment":"${Environment}","requestId":"$context.requestId","routeKey":"$context.routeKey","status":"$context.status","responseLength":"$context.responseLength","integrationLatency":"$context.integrationLatency"}
+      Tags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+  ConfirmationTable:
+    Type: AWS::DynamoDB::Table
+    Condition: ExternalIntegrationsEnabled
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub "aws-remote-mcp-confirmations-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      OnDemandThroughput:
+        MaxReadRequestUnits: 1
+        MaxWriteRequestUnits: 1
+      AttributeDefinitions:
+        - AttributeName: token_digest
+          AttributeType: S
+      KeySchema:
+        - AttributeName: token_digest
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  RemoteMcpFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      BuildMethod: python-uv
+    DependsOn:
+      - LambdaLogGroup
+    Properties:
+      FunctionName: !Sub "aws-remote-mcp-${Environment}"
+      Description: Bounded read-only AWS inventory over Streamable HTTP.
+      CodeUri: src/
+      Handler: aws_remote_mcp.lambda_handler.handler
+      Role: !GetAtt RemoteMcpExecutionRole.Arn
+      ReservedConcurrentExecutions: 0
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: INFO
+      Environment:
+        Variables:
+          COGNITO_ISSUER: !Ref CognitoIssuer
+          MCP_RESOURCE_URL: !Ref McpTokenAudience
+          EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
+          CONFIRMATION_TABLE_NAME: !If
+            - ExternalIntegrationsEnabled
+            - !Ref ConfirmationTable
+            - ""
+          INTEGRATION_CONFIG_PARAMETER: !If
+            - ExternalIntegrationsEnabled
+            - !Ref IntegrationConfigParameterName
+            - ""
+      Events:
+        McpPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RemoteMcpApi
+            Method: POST
+            Path: /mcp
+            PayloadFormatVersion: "2.0"
+            TimeoutInMillis: 10000
+            Auth:
+              Authorizer: CognitoJwtAuthorizer
+              AuthorizationScopes:
+                - !Ref McpRequiredScope
+        ProtectedResourceMetadataGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RemoteMcpApi
+            Method: GET
+            Path: /.well-known/oauth-protected-resource/mcp
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
+        ProtectedResourceMetadataOptions:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref RemoteMcpApi
+            Method: OPTIONS
+            Path: /.well-known/oauth-protected-resource/mcp
+            PayloadFormatVersion: "2.0"
+            Auth:
+              Authorizer: NONE
+      Tags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+  SafetyShutdownLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/aws-remote-mcp-safety-shutdown-${Environment}"
+      RetentionInDays: 7
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "aws-remote-mcp-safety-shutdown-${Environment}"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownTopicPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref SafetyShutdownTopic
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowOnlyTheTrafficAlarm
+            Effect: Allow
+            Principal:
+              Service: cloudwatch.amazonaws.com
+            Action: sns:Publish
+            Resource: !Ref SafetyShutdownTopic
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+              ArnEquals:
+                aws:SourceArn: !Sub "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:aws-remote-mcp-${Environment}-request-kill-switch"
+
+  SafetyShutdownExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: close-only-this-environment-endpoint
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: WriteOwnLogs
+                Effect: Allow
+                Action:
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: !Sub "${SafetyShutdownLogGroup.Arn}:*"
+              - Sid: DisableOnlyThisApi
+                Effect: Allow
+                Action: apigateway:PATCH
+                Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis/${RemoteMcpApi}"
+              - Sid: StopOnlyThisFunction
+                Effect: Allow
+                Action: lambda:PutFunctionConcurrency
+                Resource: !GetAtt RemoteMcpFunction.Arn
+              - Sid: DeleteOnlyThisTrafficAlarm
+                Effect: Allow
+                Action: cloudwatch:DeleteAlarms
+                Resource: !Sub "arn:${AWS::Partition}:cloudwatch:${AWS::Region}:${AWS::AccountId}:alarm:aws-remote-mcp-${Environment}-request-kill-switch"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownFunction:
+    Type: AWS::Serverless::Function
+    DependsOn:
+      - SafetyShutdownLogGroup
+    Properties:
+      FunctionName: !Sub "aws-remote-mcp-safety-shutdown-${Environment}"
+      Description: Fail-closed kill switch for the temporary DEV test window.
+      CodeUri: safety_shutdown/
+      Handler: handler.handler
+      Role: !GetAtt SafetyShutdownExecutionRole.Arn
+      Environment:
+        Variables:
+          TARGET_API_ID: !Ref RemoteMcpApi
+          TARGET_FUNCTION_NAME: !Ref RemoteMcpFunction
+          TRAFFIC_ALARM_NAME: !Sub "aws-remote-mcp-${Environment}-request-kill-switch"
+      LoggingConfig:
+        LogFormat: JSON
+        ApplicationLogLevel: INFO
+        SystemLogLevel: INFO
+      Events:
+        TrafficAlarm:
+          Type: SNS
+          Properties:
+            Topic: !Ref SafetyShutdownTopic
+      Tags:
+        environment: !Ref Environment
+        project: aws-remote-mcp
+
+  SafetyShutdownScheduleGroup:
+    Type: AWS::Scheduler::ScheduleGroup
+    Properties:
+      Name: !Sub "aws-remote-mcp-safety-${Environment}"
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+  SafetyShutdownSchedulerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                aws:SourceAccount: !Ref AWS::AccountId
+                aws:SourceArn: !GetAtt SafetyShutdownScheduleGroup.Arn
+      Policies:
+        - PolicyName: invoke-only-safety-shutdown
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt SafetyShutdownFunction.Arn
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
+Outputs:
+  DevMcpEndpoint:
+    Description: Closed-by-default DEV MCP endpoint protected by Cognito JWT.
+    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/mcp"
+  ProtectedResourceMetadataEndpoint:
+    Description: Public OAuth protected-resource metadata while the API is enabled.
+    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/.well-known/oauth-protected-resource/mcp"
+  DevApiId:
+    Description: DEV HTTP API identifier.
+    Value: !Ref RemoteMcpApi
+  DevStageName:
+    Description: Stage used by the stage-less execute-api endpoint URL.
+    Value: "$default"
+  DevFunctionName:
+    Description: DEV Lambda function name.
+    Value: !Ref RemoteMcpFunction
+  SafetyShutdownFunctionArn:
+    Description: Function invoked to close the temporary DEV test window.
+    Value: !GetAtt SafetyShutdownFunction.Arn
+  SafetyShutdownSchedulerRoleArn:
+    Description: Exact role used by a one-time automatic close schedule.
+    Value: !GetAtt SafetyShutdownSchedulerRole.Arn
+  SafetyShutdownScheduleGroupName:
+    Description: Dedicated group for one-time automatic close schedules.
+    Value: !Ref SafetyShutdownScheduleGroup
+  SafetyShutdownTopicArn:
+    Description: Exact SNS topic used by the temporary request-volume alarm.
+    Value: !Ref SafetyShutdownTopic

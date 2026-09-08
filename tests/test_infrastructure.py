@@ -1,0 +1,124 @@
+"""Static safety regressions for the pre-deployment SAM template."""
+
+from pathlib import Path
+
+TEMPLATE = Path(__file__).parents[1] / "template.yaml"
+
+
+def template_text() -> str:
+    return TEMPLATE.read_text(encoding="utf-8")
+
+
+def test_template_supports_only_isolated_dev_and_prod() -> None:
+    template = template_text()
+
+    assert "AllowedValues:\n      - dev\n      - prod" in template
+    assert "Runtime: python3.13" in template
+    assert "MemorySize: 128" in template
+    assert "Timeout: 10" in template
+    assert "ReservedConcurrentExecutions: 0" in template
+    assert template.count("ReservedConcurrentExecutions:") == 1
+    assert "ThrottlingBurstLimit: 1" in template
+    assert "ThrottlingRateLimit: 1" in template
+    assert 'StageName: "$default"' in template
+    assert "DevStageName:" in template
+    assert template.count("RetentionInDays: 7") == 3
+
+
+def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
+    template = template_text()
+
+    assert "DisableExecuteApiEndpoint: true" in template
+    assert "FailOnWarnings: true" in template
+    assert 'openapi: "3.0.1"' in template
+    assert 'url: "/"' in template
+    assert "paths: {}" in template
+    assert "CognitoJwtAuthorizer:" in template
+    assert "DefaultAuthorizer: CognitoJwtAuthorizer" in template
+    assert 'IdentitySource: "$request.header.Authorization"' in template
+    assert "issuer: !Ref CognitoIssuer" in template
+    assert "- !Ref McpTokenAudience" in template
+    assert "AuthorizationScopes:" in template
+    assert template.count("- !Ref McpRequiredScope") == 2
+    assert "McpRequiredScope:" in template
+    assert "EnableIamAuthorizer" not in template
+    assert "AWS_IAM" not in template
+
+
+def test_template_iam_is_exact_and_external_access_is_conditional() -> None:
+    template = template_text()
+
+    assert "logs:CreateLogStream" in template
+    assert "logs:PutLogEvents" in template
+    assert "apigateway:PATCH" in template
+    assert "lambda:PutFunctionConcurrency" in template
+    assert "cloudwatch:DeleteAlarms" in template
+    assert "lambda:InvokeFunction" in template
+    assert "lambda:ListFunctions" in template
+    assert "aws:RequestedRegion: !Ref AWS::Region" in template
+    assert "apigateway:GET" in template
+    assert "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis" in template
+    assert "dynamodb:PutItem" in template
+    assert "dynamodb:UpdateItem" in template
+    assert "dynamodb:GetItem" in template
+    assert "ssm:GetParameter" in template
+    assert template.count("ExternalIntegrationsEnabled") >= 4
+    assert 'Action: "*"' not in template
+    assert "AdministratorAccess" not in template
+    assert "PowerUserAccess" not in template
+    assert "ReadOnlyAccess" not in template
+
+
+def test_template_has_no_expensive_network_or_compute_extras() -> None:
+    template = template_text()
+
+    for forbidden in (
+        "VpcConfig",
+        "ProvisionedConcurrency",
+        "AWS::EC2::NatGateway",
+        "AWS::WAF",
+        "AWS::Route53",
+        "AWS::SQS",
+    ):
+        assert forbidden not in template
+
+
+def test_confirmation_table_is_off_by_default_and_cost_bounded() -> None:
+    template = template_text()
+
+    assert 'Default: "false"' in template
+    assert "Type: AWS::DynamoDB::Table" in template
+    assert "Condition: ExternalIntegrationsEnabled" in template
+    assert "BillingMode: PAY_PER_REQUEST" in template
+    assert "MaxReadRequestUnits: 1" in template
+    assert "MaxWriteRequestUnits: 1" in template
+    assert "AttributeName: expires_at" in template
+    assert "PointInTimeRecoveryEnabled: false" in template
+    assert "DeletionPolicy: Delete" in template
+    assert "UpdateReplacePolicy: Delete" in template
+
+
+def test_only_current_mcp_post_route_is_exposed() -> None:
+    template = template_text()
+
+    assert "Method: POST" in template
+    assert "Path: /mcp" in template
+    assert 'PayloadFormatVersion: "2.0"' in template
+    assert "Method: ANY" not in template
+    assert template.count("Method: GET") == 1
+    assert template.count("Method: OPTIONS") == 1
+    assert template.count("Path: /.well-known/oauth-protected-resource/mcp") == 2
+    assert template.count("Authorizer: NONE") == 2
+
+
+def test_automatic_shutdown_is_wired_to_exact_resources() -> None:
+    template = template_text()
+
+    assert "SafetyShutdownFunction:" in template
+    assert "SafetyShutdownTopic:" in template
+    assert "SafetyShutdownScheduleGroup:" in template
+    assert "Service: scheduler.amazonaws.com" in template
+    assert "Service: cloudwatch.amazonaws.com" in template
+    assert "aws-remote-mcp-${Environment}-request-kill-switch" in template
+    assert "close-only-this-environment-endpoint" in template
+    assert "aws:SourceArn: !GetAtt SafetyShutdownScheduleGroup.Arn" in template
