@@ -26,7 +26,7 @@ three closed steps:
    audience only as bootstrap parameters. The template fixes the endpoint as
    disabled and Lambda concurrency as zero, so the bootstrap cannot serve a
    request.
-2. Create the PROD authentication stack against the new PROD MCP endpoint.
+2. Create the PROD authentication stack against the new `McpEndpoint` output.
 3. Immediately update the application stack with the PROD issuer, audience and
    scope.
 
@@ -60,4 +60,3 @@ After the final update, require all of the following:
 
 Do not invoke PROD Lambda or open its API as part of initial creation. A future
 live PROD validation requires its own reviewed scripts and operational decision.
-
