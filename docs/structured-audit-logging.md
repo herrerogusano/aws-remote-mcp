@@ -32,7 +32,7 @@ best-effort evidence rather than part of the write transaction.
 
 Lambda uses the existing JSON application log configuration and seven-day log
 retention. The feature adds no log group, database, stream or fixed monthly
-service. Deployment and live CloudWatch verification remain separately gated.
+service. It is deployed in closed DEV and has been verified in CloudWatch.
 
 ## Verification
 
@@ -40,3 +40,7 @@ Offline tests assert the exact record shape, reject unbounded context, prove
 that confirmation and provider content cannot enter the record, verify Lambda
 request-ID wiring and ensure a failed audit sink does not change the tool
 response.
+
+The 2026-09-09 closed-API validation produced successful records for
+`diagnostico` and `listar_inventario_aws`. The observed keys matched the fixed
+schema exactly. No external provider write was used for this verification.
