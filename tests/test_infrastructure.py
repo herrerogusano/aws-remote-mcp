@@ -21,6 +21,10 @@ def test_template_supports_only_isolated_dev_and_prod() -> None:
     assert "ThrottlingBurstLimit: 1" in template
     assert "ThrottlingRateLimit: 1" in template
     assert 'StageName: "$default"' in template
+    assert "McpEndpoint:" in template
+    assert "ApiId:" in template
+    assert "FunctionName:" in template
+    assert "StageName:" in template
     assert "DevStageName:" in template
     assert template.count("RetentionInDays: 7") == 3
 

@@ -145,7 +145,7 @@ Resources:
         openapi: "3.0.1"
         info:
           title: !Sub "aws-remote-mcp-${Environment}"
-          description: Bounded read-only AWS inventory for the DEV environment.
+          description: Bounded read-only AWS inventory for one isolated environment.
           version: "1.0"
         servers:
           - url: "/"
@@ -355,7 +355,7 @@ Resources:
       - SafetyShutdownLogGroup
     Properties:
       FunctionName: !Sub "aws-remote-mcp-safety-shutdown-${Environment}"
-      Description: Fail-closed kill switch for the temporary DEV test window.
+      Description: Fail-closed kill switch for a temporary validation window.
       CodeUri: safety_shutdown/
       Handler: handler.handler
       Role: !GetAtt SafetyShutdownExecutionRole.Arn
@@ -416,23 +416,35 @@ Resources:
           Value: aws-remote-mcp
 
 Outputs:
+  McpEndpoint:
+    Description: Closed-by-default MCP endpoint protected by Cognito JWT.
+    Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/mcp"
+  ApiId:
+    Description: HTTP API identifier for this environment.
+    Value: !Ref RemoteMcpApi
+  StageName:
+    Description: Stage used by the stage-less execute-api endpoint URL.
+    Value: "$default"
+  FunctionName:
+    Description: MCP Lambda function name for this environment.
+    Value: !Ref RemoteMcpFunction
   DevMcpEndpoint:
-    Description: Closed-by-default DEV MCP endpoint protected by Cognito JWT.
+    Description: Backward-compatible alias for McpEndpoint.
     Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/mcp"
   ProtectedResourceMetadataEndpoint:
     Description: Public OAuth protected-resource metadata while the API is enabled.
     Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/.well-known/oauth-protected-resource/mcp"
   DevApiId:
-    Description: DEV HTTP API identifier.
+    Description: Backward-compatible alias for ApiId.
     Value: !Ref RemoteMcpApi
   DevStageName:
-    Description: Stage used by the stage-less execute-api endpoint URL.
+    Description: Backward-compatible alias for StageName.
     Value: "$default"
   DevFunctionName:
-    Description: DEV Lambda function name.
+    Description: Backward-compatible alias for FunctionName.
     Value: !Ref RemoteMcpFunction
   SafetyShutdownFunctionArn:
-    Description: Function invoked to close the temporary DEV test window.
+    Description: Function invoked to close a temporary validation window.
     Value: !GetAtt SafetyShutdownFunction.Arn
   SafetyShutdownSchedulerRoleArn:
     Description: Exact role used by a one-time automatic close schedule.
