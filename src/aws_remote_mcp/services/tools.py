@@ -12,7 +12,7 @@ from aws_remote_mcp.adapters.protocols import (
     TelegramAdapter,
     TrelloAdapter,
 )
-from aws_remote_mcp.core.confirmation import ConfirmationError, ConfirmationGuard
+from aws_remote_mcp.core.confirmation import ConfirmationError, ConfirmationProvider
 from aws_remote_mcp.core.models import (
     CallerContext,
     JsonValue,
@@ -33,7 +33,7 @@ class ToolService:
         self,
         *,
         operations: OperationRegistry,
-        confirmations: ConfirmationGuard,
+        confirmations: ConfirmationProvider,
         aws: AwsAdapter,
         telegram: TelegramAdapter,
         trello: TrelloAdapter,
@@ -90,9 +90,14 @@ class ToolService:
             "destination": destination,
             "message": message,
         }
-        confirmation = self._confirmations.prepare(
-            caller, "telegram.send_message", payload
-        )
+        try:
+            confirmation = self._confirmations.prepare(
+                caller, "telegram.send_message", payload
+            )
+        except ConfirmationError as error:
+            return ToolResult(
+                status="error", errors=(ToolIssue(error.code, str(error)),)
+            )
         return ToolResult(
             status="confirmation_required",
             data={"preview": payload},
@@ -141,9 +146,14 @@ class ToolService:
         if issue is not None:
             return ToolResult(status="error", errors=(issue,))
         payload = self._trello_payload(board, list_name, title, description)
-        confirmation = self._confirmations.prepare(
-            caller, "trello.create_card", payload
-        )
+        try:
+            confirmation = self._confirmations.prepare(
+                caller, "trello.create_card", payload
+            )
+        except ConfirmationError as error:
+            return ToolResult(
+                status="error", errors=(ToolIssue(error.code, str(error)),)
+            )
         return ToolResult(
             status="confirmation_required",
             data={"preview": payload},

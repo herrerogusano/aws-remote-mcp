@@ -45,7 +45,7 @@ def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     assert "AWS_IAM" not in template
 
 
-def test_template_iam_is_log_delivery_plus_bounded_inventory_reads() -> None:
+def test_template_iam_is_exact_and_external_access_is_conditional() -> None:
     template = template_text()
 
     assert "logs:CreateLogStream" in template
@@ -58,13 +58,18 @@ def test_template_iam_is_log_delivery_plus_bounded_inventory_reads() -> None:
     assert "aws:RequestedRegion: !Ref AWS::Region" in template
     assert "apigateway:GET" in template
     assert "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis" in template
+    assert "dynamodb:PutItem" in template
+    assert "dynamodb:UpdateItem" in template
+    assert "dynamodb:GetItem" in template
+    assert "ssm:GetParameter" in template
+    assert template.count("ExternalIntegrationsEnabled") >= 4
     assert 'Action: "*"' not in template
     assert "AdministratorAccess" not in template
     assert "PowerUserAccess" not in template
     assert "ReadOnlyAccess" not in template
 
 
-def test_template_has_no_expensive_or_persistent_extras() -> None:
+def test_template_has_no_expensive_network_or_compute_extras() -> None:
     template = template_text()
 
     for forbidden in (
@@ -73,10 +78,24 @@ def test_template_has_no_expensive_or_persistent_extras() -> None:
         "AWS::EC2::NatGateway",
         "AWS::WAF",
         "AWS::Route53",
-        "AWS::DynamoDB",
         "AWS::SQS",
     ):
         assert forbidden not in template
+
+
+def test_confirmation_table_is_off_by_default_and_cost_bounded() -> None:
+    template = template_text()
+
+    assert 'Default: "false"' in template
+    assert "Type: AWS::DynamoDB::Table" in template
+    assert "Condition: ExternalIntegrationsEnabled" in template
+    assert "BillingMode: PAY_PER_REQUEST" in template
+    assert "MaxReadRequestUnits: 1" in template
+    assert "MaxWriteRequestUnits: 1" in template
+    assert "AttributeName: expires_at" in template
+    assert "PointInTimeRecoveryEnabled: false" in template
+    assert "DeletionPolicy: Delete" in template
+    assert "UpdateReplacePolicy: Delete" in template
 
 
 def test_only_current_mcp_post_route_is_exposed() -> None:

@@ -18,8 +18,13 @@ from aws_remote_mcp.adapters.fakes import (
     FakeTelegramAdapter,
     FakeTrelloAdapter,
 )
-from aws_remote_mcp.adapters.protocols import AwsAdapter, AwsAdapterResult
-from aws_remote_mcp.core.confirmation import ConfirmationGuard
+from aws_remote_mcp.adapters.protocols import (
+    AwsAdapter,
+    AwsAdapterResult,
+    TelegramAdapter,
+    TrelloAdapter,
+)
+from aws_remote_mcp.core.confirmation import ConfirmationGuard, ConfirmationProvider
 from aws_remote_mcp.core.models import CallerContext, ToolIssue, ToolResult
 from aws_remote_mcp.core.operations import build_default_registry
 from aws_remote_mcp.security.authorization import (
@@ -76,7 +81,16 @@ def serialize_tool_result(result: ToolResult) -> dict[str, Any]:
 
 
 def build_tool_service(
-    *, environment: str = "local", aws_adapter: AwsAdapter | None = None
+    *,
+    environment: str = "local",
+    aws_adapter: AwsAdapter | None = None,
+    confirmations: ConfirmationProvider | None = None,
+    telegram_adapter: TelegramAdapter | None = None,
+    trello_adapter: TrelloAdapter | None = None,
+    telegram_destinations: frozenset[str] = frozenset({"local-preview"}),
+    trello_destinations: frozenset[tuple[str, str]] = frozenset(
+        {("local-preview", "local-preview")}
+    ),
 ) -> ToolService:
     aws = aws_adapter or FakeAwsAdapter(
         responses={
@@ -114,12 +128,12 @@ def build_tool_service(
     )
     return ToolService(
         operations=build_default_registry(),
-        confirmations=ConfirmationGuard(),
+        confirmations=confirmations or ConfirmationGuard(),
         aws=aws,
-        telegram=FakeTelegramAdapter(),
-        trello=FakeTrelloAdapter(),
-        telegram_destinations=frozenset({"local-preview"}),
-        trello_destinations=frozenset({("local-preview", "local-preview")}),
+        telegram=telegram_adapter or FakeTelegramAdapter(),
+        trello=trello_adapter or FakeTrelloAdapter(),
+        telegram_destinations=telegram_destinations,
+        trello_destinations=trello_destinations,
     )
 
 
@@ -130,7 +144,15 @@ def create_server(
     token_verifier: TokenVerifier | None = None,
     environment: str = "local",
     include_previews: bool = True,
+    include_external_writes: bool = False,
     aws_adapter: AwsAdapter | None = None,
+    confirmations: ConfirmationProvider | None = None,
+    telegram_adapter: TelegramAdapter | None = None,
+    trello_adapter: TrelloAdapter | None = None,
+    telegram_destinations: frozenset[str] = frozenset({"local-preview"}),
+    trello_destinations: frozenset[tuple[str, str]] = frozenset(
+        {("local-preview", "local-preview")}
+    ),
 ) -> MCPServer:
     """Create a fresh server and isolate mutable fake/confirmation state."""
 
@@ -139,13 +161,21 @@ def create_server(
         version=SERVER_VERSION,
         description="Authenticated, cost-aware AWS remote MCP server.",
         instructions=(
-            "AWS inventory is read-only and bounded; external integrations remain "
-            "preview-only."
+            "AWS inventory is read-only and bounded; external writes require an "
+            "exact, expiring, single-use confirmation."
         ),
         auth=auth_settings,
         token_verifier=token_verifier,
     )
-    tools = build_tool_service(environment=environment, aws_adapter=aws_adapter)
+    tools = build_tool_service(
+        environment=environment,
+        aws_adapter=aws_adapter,
+        confirmations=confirmations,
+        telegram_adapter=telegram_adapter,
+        trello_adapter=trello_adapter,
+        telegram_destinations=telegram_destinations,
+        trello_destinations=trello_destinations,
+    )
 
     @server.tool(name="diagnostico", structured_output=True)
     def diagnostic() -> dict[str, Any]:
@@ -167,7 +197,62 @@ def create_server(
         result = tools.run_aws_operation("aws.inventory.list", {})
         return serialize_tool_result(result)
 
-    if include_previews:
+    if include_previews and include_external_writes:
+
+        @server.tool(name="preparar_mensaje_telegram", structured_output=True)
+        def prepare_remote_telegram_message(
+            destination: str, message: str
+        ) -> dict[str, Any]:
+            """Preview one allowlisted Telegram message and issue confirmation."""
+
+            result = tools.prepare_telegram_message(
+                caller_provider(), destination, message
+            )
+            return serialize_tool_result(result)
+
+        @server.tool(name="enviar_mensaje_telegram", structured_output=True)
+        def execute_remote_telegram_message(
+            confirmation: str, destination: str, message: str
+        ) -> dict[str, Any]:
+            """Consume confirmation before one Telegram write attempt."""
+
+            result = tools.execute_telegram_message(
+                caller_provider(), confirmation, destination, message
+            )
+            return serialize_tool_result(result)
+
+        @server.tool(name="preparar_tarjeta_trello", structured_output=True)
+        def prepare_remote_trello_card(
+            board: str, list_name: str, title: str, description: str = ""
+        ) -> dict[str, Any]:
+            """Preview one allowlisted Trello card and issue confirmation."""
+
+            result = tools.prepare_trello_card(
+                caller_provider(), board, list_name, title, description
+            )
+            return serialize_tool_result(result)
+
+        @server.tool(name="crear_tarjeta_trello", structured_output=True)
+        def execute_remote_trello_card(
+            confirmation: str,
+            board: str,
+            list_name: str,
+            title: str,
+            description: str = "",
+        ) -> dict[str, Any]:
+            """Consume confirmation before one Trello write attempt."""
+
+            result = tools.execute_trello_card(
+                caller_provider(),
+                confirmation,
+                board,
+                list_name,
+                title,
+                description,
+            )
+            return serialize_tool_result(result)
+
+    elif include_previews:
 
         @server.tool(name="preparar_mensaje_telegram", structured_output=True)
         def prepare_telegram_message(message: str) -> dict[str, Any]:
@@ -208,18 +293,34 @@ def transport_security(
 
 def create_app(
     *,
+    caller_provider: Callable[[], CallerContext] = lambda: LOCAL_CALLER,
     allowed_hosts: tuple[str, ...] = LOCAL_ALLOWED_HOSTS,
     allowed_origins: tuple[str, ...] = LOCAL_ALLOWED_ORIGINS,
     environment: str = "local",
     include_previews: bool = True,
+    include_external_writes: bool = False,
     aws_adapter: AwsAdapter | None = None,
+    confirmations: ConfirmationProvider | None = None,
+    telegram_adapter: TelegramAdapter | None = None,
+    trello_adapter: TrelloAdapter | None = None,
+    telegram_destinations: frozenset[str] = frozenset({"local-preview"}),
+    trello_destinations: frozenset[tuple[str, str]] = frozenset(
+        {("local-preview", "local-preview")}
+    ),
 ) -> Starlette:
     """Build the stateless, JSON-response ASGI application."""
 
     return create_server(
+        caller_provider=caller_provider,
         environment=environment,
         include_previews=include_previews,
+        include_external_writes=include_external_writes,
         aws_adapter=aws_adapter,
+        confirmations=confirmations,
+        telegram_adapter=telegram_adapter,
+        trello_adapter=trello_adapter,
+        telegram_destinations=telegram_destinations,
+        trello_destinations=trello_destinations,
     ).streamable_http_app(
         streamable_http_path=MCP_PATH,
         json_response=True,
@@ -265,6 +366,13 @@ def create_gateway_app(
     allowed_hosts: tuple[str, ...],
     environment: str,
     aws_adapter: AwsAdapter,
+    caller_provider: Callable[[], CallerContext] = lambda: LOCAL_CALLER,
+    include_external_writes: bool = False,
+    confirmations: ConfirmationProvider | None = None,
+    telegram_adapter: TelegramAdapter | None = None,
+    trello_adapter: TrelloAdapter | None = None,
+    telegram_destinations: frozenset[str] = frozenset(),
+    trello_destinations: frozenset[tuple[str, str]] = frozenset(),
 ) -> Starlette:
     """Build the API Gateway app with public RFC 9728 metadata.
 
@@ -276,8 +384,15 @@ def create_gateway_app(
         allowed_hosts=allowed_hosts,
         allowed_origins=(),
         environment=environment,
-        include_previews=False,
+        caller_provider=caller_provider,
+        include_previews=include_external_writes,
+        include_external_writes=include_external_writes,
         aws_adapter=aws_adapter,
+        confirmations=confirmations,
+        telegram_adapter=telegram_adapter,
+        trello_adapter=trello_adapter,
+        telegram_destinations=telegram_destinations,
+        trello_destinations=trello_destinations,
     )
     app.routes.extend(
         create_protected_resource_routes(

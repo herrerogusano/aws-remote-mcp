@@ -1,5 +1,7 @@
 """Offline application service tests through fake adapters."""
 
+from collections.abc import Mapping
+
 import pytest
 
 from aws_remote_mcp.adapters.fakes import (
@@ -12,9 +14,15 @@ from aws_remote_mcp.adapters.protocols import (
     AdapterIssue,
     AwsAdapterResult,
 )
-from aws_remote_mcp.core.confirmation import ConfirmationGuard
+from aws_remote_mcp.core.confirmation import (
+    ConfirmationError,
+    ConfirmationGuard,
+    ConfirmationProvider,
+)
 from aws_remote_mcp.core.models import (
     CallerContext,
+    ConfirmationMetadata,
+    JsonValue,
     OperationCounters,
     WriteLimitExceededError,
 )
@@ -36,11 +44,12 @@ def build_service(
     adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
     *,
     max_result_bytes: int = 65_536,
+    confirmations: ConfirmationProvider | None = None,
 ) -> ToolService:
     aws, telegram, trello = adapters
     return ToolService(
         operations=build_default_registry(),
-        confirmations=ConfirmationGuard(),
+        confirmations=confirmations or ConfirmationGuard(),
         aws=aws,
         telegram=telegram,
         trello=trello,
@@ -175,3 +184,37 @@ def test_counter_rejects_second_write() -> None:
 
     with pytest.raises(WriteLimitExceededError):
         counters.record_external_write_attempt()
+
+
+def test_confirmation_store_failure_is_a_sanitized_tool_error(
+    caller: CallerContext,
+    adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
+) -> None:
+    class UnavailableConfirmations:
+        def prepare(
+            self,
+            caller: CallerContext,
+            action: str,
+            payload: Mapping[str, JsonValue],
+        ) -> ConfirmationMetadata:
+            raise ConfirmationError(
+                "confirmation_store_unavailable",
+                "Confirmation could not be stored.",
+            )
+
+        def consume(
+            self,
+            token: str,
+            caller: CallerContext,
+            action: str,
+            payload: Mapping[str, JsonValue],
+        ) -> None:
+            raise AssertionError("consume must not be called")
+
+    result = build_service(
+        adapters, confirmations=UnavailableConfirmations()
+    ).prepare_telegram_message(caller, "test-chat", "hello")
+
+    assert result.status == "error"
+    assert result.errors[0].code == "confirmation_store_unavailable"
+    assert adapters[1].calls == []

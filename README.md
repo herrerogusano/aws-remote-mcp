@@ -5,9 +5,10 @@ for AWS Lambda and API Gateway.
 
 The project exposes a local MCP server over current Streamable HTTP and has a
 closed-by-default DEV foundation deployed in AWS. The application includes a
-bounded, read-only AWS inventory adapter while Telegram/Trello tools remain
-preview-only; the remote endpoint and its compute remain disabled outside a
-separately approved validation window.
+bounded, read-only AWS inventory adapter. Confirmed Telegram/Trello actions and
+their cost-bounded state are prepared behind a disabled-by-default deployment
+flag; the remote endpoint and its compute remain disabled outside a separately
+approved validation window.
 
 ## Development
 
@@ -44,7 +45,9 @@ Current-protocol clients can discover and call:
 - `preparar_tarjeta_trello`
 
 Local development returns a deterministic fixture for AWS inventory and never
-contacts AWS. No execute/send/create tool is exposed in the current build.
+contacts AWS. Execute/send/create tools are excluded from the default local and
+remote profiles; their opt-in design is documented in
+`docs/external-integrations.md`.
 
 ## Branch and environment model
 

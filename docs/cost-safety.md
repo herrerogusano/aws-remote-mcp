@@ -58,6 +58,22 @@ API target, five minutes is roughly 300 requests ($0.0003 at $1/million), while
 the alarm should close substantially earlier. These are estimates, not billing
 guarantees.
 
+The optional external-integration profile is off by default. When enabled it
+uses one DynamoDB on-demand table for confirmation state, with table maximums of
+one read request unit and one write request unit per second, no indexes, no
+streams and no point-in-time recovery. DynamoDB documents these maximums as
+cost-control targets rather than absolute ceilings because burst capacity can
+temporarily exceed them. Confirmation records expire after five minutes and TTL
+removes them asynchronously.
+
+Provider credentials use one Parameter Store Standard SecureString under the
+AWS-managed `aws/ssm` key. Standard parameters and standard-throughput API
+interactions have no additional charge, and AWS-managed KMS keys have no key or
+request charge. Secrets Manager and customer-managed KMS keys are intentionally
+excluded because they add recurring charges. Each confirmed execution performs
+at most one Parameter Store read, one DynamoDB conditional write and one provider
+POST; failed confirmation checks may add one strongly consistent DynamoDB read.
+
 ## Controls intentionally not used
 
 - API Gateway regional account throttling is shared with another existing API
@@ -81,3 +97,7 @@ guarantees.
 - https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html
+- https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/on-demand-capacity-mode-max-throughput.html
+- https://aws.amazon.com/dynamodb/pricing/
+- https://aws.amazon.com/systems-manager/pricing/
+- https://docs.aws.amazon.com/prescriptive-guidance/latest/aws-startup-security-baseline/wkld-03.html

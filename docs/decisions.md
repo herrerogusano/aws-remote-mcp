@@ -255,3 +255,23 @@ Lambda remain the authorization boundary. Refuse recovery after 180 elapsed
 seconds measured before window opening. Keep the existing five-minute schedule
 and 15-request tripwire, and never retry tool execution. A failure of the fresh
 discovery process closes the window via the existing finally block.
+
+## D-025 - Persistent single-use confirmation with zero-fixed-cost secrets
+
+Use a conditional DynamoDB update for remote confirmation consumption. The
+record contains only a token digest, caller fingerprint, action, payload digest,
+expiry and consumed flag. Keep consumed records until TTL cleanup so replays can
+be distinguished, and check expiry in the condition because TTL deletion is
+asynchronous. Configure on-demand billing with maximum read and write throughput
+of one request unit per second, and create the table only when the external
+integration profile is explicitly enabled.
+
+Store Telegram and Trello configuration together in one Parameter Store Standard
+SecureString encrypted by the AWS-managed `aws/ssm` key. Fetch it only after
+confirmation consumption, with one SDK attempt. Do not use Secrets Manager or a
+customer-managed KMS key because both add fixed monthly cost for this scale.
+
+Each provider adapter makes one HTTPS POST, has a four-second timeout and never
+retries. An ambiguous timeout consumes the confirmation and requires a new user
+preview and confirmation. Provider credentials and destination identifiers are
+kept behind stable aliases and no raw response or exception crosses the adapter.
