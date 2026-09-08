@@ -2,7 +2,7 @@
 param(
     [string]$Region = "eu-west-1",
     [string]$ParameterName = "/portfolio/aws-remote-mcp/dev/integrations",
-    [string]$TrelloListId = "6aa00f38aaeb45874da92685",
+    [Parameter(Mandatory)][string]$TrelloListId,
     [string]$CredentialCachePath = (
         Join-Path $env:LOCALAPPDATA "aws-remote-mcp\integration-credentials.json"
     )

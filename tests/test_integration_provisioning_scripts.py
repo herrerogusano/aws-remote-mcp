@@ -36,6 +36,7 @@ def test_aws_preflight_runs_before_any_secret_prompt() -> None:
 def test_trello_list_url_delimits_the_interpolated_identifier() -> None:
     script = PROVISION.read_text(encoding="utf-8")
 
+    assert "[Parameter(Mandatory)][string]$TrelloListId" in script
     assert "/1/lists/${TrelloListId}?fields=name,closed" in script
     assert "/1/lists/$TrelloListId?" not in script
 
