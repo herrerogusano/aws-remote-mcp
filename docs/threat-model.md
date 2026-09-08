@@ -39,6 +39,5 @@ credentials.
 ## Non-goals
 
 The deployment is not a multi-tenant service, a continuously available public
-endpoint or a global AWS inventory product. PROD and automated delivery are
-optional extensions and are intentionally absent from the completed DEV scope.
-
+endpoint or a global AWS inventory product. PROD exists as an empty, closed
+environment; live PROD validation and automated delivery remain out of scope.

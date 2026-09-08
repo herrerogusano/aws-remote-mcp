@@ -1,5 +1,8 @@
 # Closed PROD deployment
 
+The initial deployment completed on 2026-09-09. See
+`docs/prod-deployment-evidence.md` for the verified state.
+
 PROD is an isolated, closed-by-default environment deployed only from `main`.
 Its initial profile has no users and no Telegram or Trello integration. This
 avoids copying identity, credentials or confirmation state across environments.
