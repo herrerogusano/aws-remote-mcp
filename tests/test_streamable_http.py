@@ -15,6 +15,8 @@ from mcp import Client
 from mcp_types.jsonrpc import HEADER_MISMATCH
 from starlette.testclient import TestClient
 
+from aws_remote_mcp.adapters.fakes import FakeTelegramAdapter, FakeTrelloAdapter
+from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.http_server import (
     MAX_HTTP_REQUEST_BYTES,
     create_app,
@@ -94,6 +96,64 @@ def test_tool_call_returns_structured_content(http_client: TestClient) -> None:
     assert result["isError"] is False
     assert result["structuredContent"]["transport"] == "streamable-http"
     assert result["structuredContent"]["external_side_effects"] is False
+
+
+def test_external_tools_require_prepare_then_exact_confirmation() -> None:
+    telegram = FakeTelegramAdapter()
+    app = create_app(
+        allowed_hosts=("testserver",),
+        include_external_writes=True,
+        confirmations=ConfirmationGuard(),
+        telegram_adapter=telegram,
+        trello_adapter=FakeTrelloAdapter(),
+        telegram_destinations=frozenset({"owner"}),
+        trello_destinations=frozenset({("portfolio", "inbox")}),
+    )
+    with TestClient(app) as client:
+        body, headers = modern_request("tools/list")
+        listing = client.post("/mcp", json=body, headers=headers)
+        names = {tool["name"] for tool in response_json(listing)["result"]["tools"]}
+        assert names == {
+            "diagnostico",
+            "listar_inventario_aws",
+            "preparar_mensaje_telegram",
+            "enviar_mensaje_telegram",
+            "preparar_tarjeta_trello",
+            "crear_tarjeta_trello",
+        }
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "preparar_mensaje_telegram",
+                "arguments": {"destination": "owner", "message": "hello"},
+            },
+            name="preparar_mensaje_telegram",
+        )
+        prepared = client.post("/mcp", json=body, headers=headers)
+        prepared_content = response_json(prepared)["result"]["structuredContent"]
+        token = prepared_content["confirmation"]["token"]
+        assert prepared_content["status"] == "confirmation_required"
+        assert telegram.calls == []
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "enviar_mensaje_telegram",
+                "arguments": {
+                    "confirmation": token,
+                    "destination": "owner",
+                    "message": "hello",
+                },
+            },
+            name="enviar_mensaje_telegram",
+        )
+        executed = client.post("/mcp", json=body, headers=headers)
+        content = response_json(executed)["result"]["structuredContent"]
+
+    assert content["status"] == "ok"
+    assert content["counters"]["external_writes_attempted"] == 1
+    assert telegram.calls == [("owner", "hello")]
 
 
 def test_unknown_tool_is_a_protocol_error_result(http_client: TestClient) -> None:

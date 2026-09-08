@@ -8,9 +8,18 @@ from typing import Any, cast
 
 import pytest
 
-from aws_remote_mcp.adapters.fakes import FakeAwsAdapter
+from aws_remote_mcp.adapters.fakes import (
+    FakeAwsAdapter,
+    FakeTelegramAdapter,
+    FakeTrelloAdapter,
+)
 from aws_remote_mcp.adapters.protocols import AwsAdapterResult
-from aws_remote_mcp.lambda_handler import _validated_gateway_event, handler
+from aws_remote_mcp.core.confirmation import ConfirmationGuard
+from aws_remote_mcp.lambda_handler import (
+    _gateway_caller,
+    _validated_gateway_event,
+    handler,
+)
 from aws_remote_mcp.security.authorization import AuthorizationConfig
 
 API_HOST = "example.execute-api.eu-west-1.amazonaws.com"
@@ -245,6 +254,62 @@ def test_gateway_drops_bearer_before_entering_application() -> None:
 
     assert "Authorization" in headers
     assert all(key.lower() != "authorization" for key in sanitized["headers"])
+
+
+def test_gateway_caller_uses_validated_issuer_subject_and_scopes() -> None:
+    event = http_api_event("tools/list")
+    authorization = AuthorizationConfig(issuer_url=ISSUER, resource_server_url=RESOURCE)
+
+    caller = _gateway_caller(event, authorization)
+
+    assert caller.issuer == ISSUER
+    assert caller.subject == "test-subject"
+    assert caller.scopes == frozenset({REQUIRED_SCOPE})
+
+
+def test_lambda_external_write_uses_confirmation_bound_to_gateway_caller(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("EXTERNAL_INTEGRATIONS_ENABLED", "true")
+    confirmations = ConfirmationGuard()
+    telegram = FakeTelegramAdapter()
+    trello = FakeTrelloAdapter()
+    monkeypatch.setattr(
+        "aws_remote_mcp.lambda_handler._external_components",
+        lambda _region: (confirmations, telegram, trello),
+    )
+    prepare_event = http_api_event(
+        "tools/call",
+        params={
+            "name": "preparar_mensaje_telegram",
+            "arguments": {"destination": "owner", "message": "hello"},
+        },
+        name="preparar_mensaje_telegram",
+    )
+    prepared = handler(prepare_event, FakeLambdaContext())
+    prepared_content = response_body(prepared)["result"]["structuredContent"]
+    token = prepared_content["confirmation"]["token"]
+
+    execute_event = http_api_event(
+        "tools/call",
+        params={
+            "name": "enviar_mensaje_telegram",
+            "arguments": {
+                "confirmation": token,
+                "destination": "owner",
+                "message": "hello",
+            },
+        },
+        name="enviar_mensaje_telegram",
+    )
+    executed = handler(execute_event, FakeLambdaContext())
+    content = response_body(executed)["result"]["structuredContent"]
+
+    assert content["status"] == "ok"
+    assert content["counters"]["external_writes_succeeded"] == 1
+    assert telegram.calls == [("owner", "hello")]
 
 
 @pytest.mark.parametrize(

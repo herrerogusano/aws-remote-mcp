@@ -20,6 +20,21 @@ Parameters:
     Type: String
     Description: Exact resource-bound scope required for MCP access.
     AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp/use$"
+  EnableExternalIntegrations:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "true"
+    Description: Create bounded confirmation state and expose confirmed writes.
+  IntegrationConfigParameterName:
+    Type: String
+    Default: /aws-remote-mcp/dev/integrations
+    AllowedPattern: "^/aws-remote-mcp/dev/[a-z0-9-]+$"
+    Description: Exact Standard SecureString parameter containing integration config.
+
+Conditions:
+  ExternalIntegrationsEnabled: !Equals [!Ref EnableExternalIntegrations, "true"]
 
 Globals:
   Function:
@@ -95,6 +110,24 @@ Resources:
                 Effect: Allow
                 Action: apigateway:GET
                 Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis"
+              - !If
+                - ExternalIntegrationsEnabled
+                - Sid: PersistOnlyMcpConfirmations
+                  Effect: Allow
+                  Action:
+                    - dynamodb:PutItem
+                    - dynamodb:UpdateItem
+                    - dynamodb:GetItem
+                  Resource: !GetAtt ConfirmationTable.Arn
+                - !Ref AWS::NoValue
+              - !If
+                - ExternalIntegrationsEnabled
+                - Sid: ReadOnlyExactIntegrationConfig
+                  Effect: Allow
+                  Action: ssm:GetParameter
+                  Resource: !Sub >-
+                    arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter${IntegrationConfigParameterName}
+                - !Ref AWS::NoValue
       Tags:
         - Key: environment
           Value: !Ref Environment
@@ -138,6 +171,36 @@ Resources:
         environment: !Ref Environment
         project: aws-remote-mcp
 
+  ConfirmationTable:
+    Type: AWS::DynamoDB::Table
+    Condition: ExternalIntegrationsEnabled
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: !Sub "aws-remote-mcp-confirmations-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      OnDemandThroughput:
+        MaxReadRequestUnits: 1
+        MaxWriteRequestUnits: 1
+      AttributeDefinitions:
+        - AttributeName: token_digest
+          AttributeType: S
+      KeySchema:
+        - AttributeName: token_digest
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      Tags:
+        - Key: environment
+          Value: !Ref Environment
+        - Key: project
+          Value: aws-remote-mcp
+
   RemoteMcpFunction:
     Type: AWS::Serverless::Function
     Metadata:
@@ -159,6 +222,15 @@ Resources:
         Variables:
           COGNITO_ISSUER: !Ref CognitoIssuer
           MCP_RESOURCE_URL: !Ref McpTokenAudience
+          EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
+          CONFIRMATION_TABLE_NAME: !If
+            - ExternalIntegrationsEnabled
+            - !Ref ConfirmationTable
+            - ""
+          INTEGRATION_CONFIG_PARAMETER: !If
+            - ExternalIntegrationsEnabled
+            - !Ref IntegrationConfigParameterName
+            - ""
       Events:
         McpPost:
           Type: HttpApi
