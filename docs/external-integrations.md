@@ -5,8 +5,8 @@
 The implementation and conditional infrastructure are deployed in DEV while
 the public endpoint and Lambda execution remain closed. Provider configuration
 is stored in one Standard SecureString; no provider credential exists in the
-repository, deployment parameters, outputs or logs. No external message or card
-has been created by this milestone.
+repository, deployment parameters, outputs or logs. One harmless Telegram
+message and one disposable Trello card completed the closed-API DEV validation.
 
 `EnableExternalIntegrations=false` remains the template default. The explicitly
 approved DEV deployment currently enables:
@@ -73,12 +73,13 @@ Provider setup and AWS activation remain operationally separate:
 3. Completed: create the Standard SecureString and verify metadata only.
 4. Completed: deploy with `EnableExternalIntegrations=true` while closed and
    audit table limits, encryption, TTL, IAM and shutdown invariants.
-5. Next: open one bounded DEV window and separately confirm one harmless Telegram
-   message and one disposable Trello card.
+5. Completed: validate one harmless Telegram message and one disposable Trello
+   card by direct Lambda invocation while API Gateway remained disabled.
+6. Completed: restore Lambda concurrency to zero and independently verify no
+   alarm or automatic-close schedule remained.
 6. Close and independently verify every shutdown invariant.
 
-Step 5 creates visible external content and requires a new explicit
-confirmation.
+Any additional visible external content requires a new explicit confirmation.
 
 ## Primary references
 

@@ -123,6 +123,13 @@ second. Its exact three DynamoDB actions and the exact SSM `GetParameter` resour
 were independently audited. API Gateway remains disabled, Lambda concurrency is
 zero and route throttling remains one request per second with burst one.
 
-The next gate is one bounded DEV validation window. The first harmless Telegram
-message and disposable Trello card are visible external writes and require a
-separate explicit confirmation.
+The first real external validation completed through direct Lambda invocation
+while API Gateway remained disabled. Exactly one confirmed Telegram message and
+one confirmed Trello card succeeded. The independent cleanup audit confirmed
+Lambda concurrency zero, no automatic-close schedule and no traffic alarm. Two
+confirmation records are consumed; one record from a pre-provider validation
+failure remains unconsumed until normal TTL deletion.
+
+The next engineering step is review and merge of the secure provisioning and
+external-validation branch. Any additional provider write or remotely open DEV
+window remains a separate operational gate.

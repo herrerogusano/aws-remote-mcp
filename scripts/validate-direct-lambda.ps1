@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$StackName = "aws-remote-mcp-dev",
-    [string]$Region = "eu-west-1"
+    [string]$Region = "eu-west-1",
+    [switch]$ValidateExternalWrites
 )
 
 $ErrorActionPreference = "Stop"
@@ -47,6 +48,8 @@ $functionConfig = Invoke-AwsCli @(
 $issuer = $functionConfig.Environment.Variables.COGNITO_ISSUER
 $audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
 $requiredScope = "$audience/use"
+$externalIntegrationsEnabled = `
+    $functionConfig.Environment.Variables.EXTERNAL_INTEGRATIONS_ENABLED -eq "true"
 if (
     [string]::IsNullOrWhiteSpace($issuer) -or
     $audience -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp"
@@ -207,7 +210,20 @@ try {
 
     $listed = Invoke-DirectMcp -Method "tools/list" -Params @{}
     $toolNames = @($listed.result.tools | ForEach-Object { $_.name } | Sort-Object)
-    if (($toolNames -join ",") -ne "diagnostico,listar_inventario_aws") {
+    $expectedToolNames = if ($externalIntegrationsEnabled) {
+        @(
+            "crear_tarjeta_trello",
+            "diagnostico",
+            "enviar_mensaje_telegram",
+            "listar_inventario_aws",
+            "preparar_mensaje_telegram",
+            "preparar_tarjeta_trello"
+        )
+    }
+    else {
+        @("diagnostico", "listar_inventario_aws")
+    }
+    if (($toolNames -join ",") -ne ($expectedToolNames -join ",")) {
         throw "Unexpected tool list."
     }
     $validation["tools_list"] = $toolNames -join ", "
@@ -242,6 +258,87 @@ try {
         throw "Bounded AWS inventory contract failed."
     }
     $validation["aws_inventory"] = "ok; 2 reads; max 20 resources; no writes"
+
+    if ($ValidateExternalWrites) {
+        if (-not $externalIntegrationsEnabled) {
+            throw "External write validation requires the deployed integration profile."
+        }
+
+        $telegramMessage = "AWS Remote MCP DEV validation successful."
+        $telegramArguments = @{
+            destination = "owner"
+            message = $telegramMessage
+        }
+        $telegramPrepared = Invoke-DirectMcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "preparar_mensaje_telegram"
+                arguments = $telegramArguments
+            } `
+            -Name "preparar_mensaje_telegram"
+        $telegramPreview = $telegramPrepared.result.structuredContent
+        if (
+            $telegramPreview.status -ne "confirmation_required" -or
+            -not $telegramPreview.confirmation.token
+        ) {
+            throw "Telegram confirmation preparation failed."
+        }
+        $telegramArguments["confirmation"] = $telegramPreview.confirmation.token
+        $telegramExecuted = Invoke-DirectMcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "enviar_mensaje_telegram"
+                arguments = $telegramArguments
+            } `
+            -Name "enviar_mensaje_telegram"
+        $telegramResult = $telegramExecuted.result.structuredContent
+        if (
+            $telegramResult.status -ne "ok" -or
+            $telegramResult.counters.external_writes_attempted -ne 1 -or
+            $telegramResult.counters.external_writes_succeeded -ne 1
+        ) {
+            throw "Telegram validation write was not confirmed."
+        }
+        $validation["telegram"] = "ok; one confirmed write"
+
+        $trelloArguments = @{
+            board = "portfolio"
+            list_name = "inbox"
+            title = "AWS Remote MCP — DEV validation"
+            description = "Disposable validation card created by the closed DEV integration test."
+        }
+        $trelloPrepared = Invoke-DirectMcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "preparar_tarjeta_trello"
+                arguments = $trelloArguments
+            } `
+            -Name "preparar_tarjeta_trello"
+        $trelloPreview = $trelloPrepared.result.structuredContent
+        if (
+            $trelloPreview.status -ne "confirmation_required" -or
+            -not $trelloPreview.confirmation.token
+        ) {
+            throw "Trello confirmation preparation failed."
+        }
+        $trelloArguments["confirmation"] = $trelloPreview.confirmation.token
+        $trelloExecuted = Invoke-DirectMcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "crear_tarjeta_trello"
+                arguments = $trelloArguments
+            } `
+            -Name "crear_tarjeta_trello"
+        $trelloResult = $trelloExecuted.result.structuredContent
+        if (
+            $trelloResult.status -ne "ok" -or
+            $trelloResult.counters.external_writes_attempted -ne 1 -or
+            $trelloResult.counters.external_writes_succeeded -ne 1
+        ) {
+            throw "Trello validation write was not confirmed."
+        }
+        $validation["trello"] = "ok; one confirmed write"
+    }
 }
 finally {
     & aws lambda put-function-concurrency --function-name $functionName --reserved-concurrent-executions 0 --region $Region | Out-Null

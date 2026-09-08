@@ -289,3 +289,14 @@ user. Store it outside the repository with a current-user-only ACL. Preserve the
 encrypted handoff across validation failures to avoid repeated secret entry, but
 overwrite and delete it immediately after AWS confirms SecureString creation.
 Never print, log or commit the plaintext or encrypted payload.
+
+## D-027 - Escape DynamoDB attribute names in production expressions
+
+DynamoDB expression keywords can reject an otherwise valid conditional update
+at runtime even when local fakes pass. Treat every application-owned attribute
+used in an update or condition as potentially reserved and map it through
+`ExpressionAttributeNames`. The first live confirmation correctly failed before
+the provider boundary because `consumed` was unescaped; the record stayed
+unconsumed and no Telegram request was attempted. The corrected expression uses
+`#consumed` for both update and condition, with a regression assertion on the
+generated request.

@@ -223,13 +223,16 @@ class DynamoDbConfirmationGuard:
             self._client.update_item(
                 TableName=self._table_name,
                 Key=key,
-                UpdateExpression="SET consumed = :true",
+                UpdateExpression="SET #consumed = :true",
                 ConditionExpression=(
-                    "attribute_exists(token_digest) AND consumed = :false "
+                    "attribute_exists(token_digest) AND #consumed = :false "
                     "AND expires_at > :now AND caller_fingerprint = :caller "
                     "AND #action = :action AND payload_digest = :payload"
                 ),
-                ExpressionAttributeNames={"#action": "action"},
+                ExpressionAttributeNames={
+                    "#action": "action",
+                    "#consumed": "consumed",
+                },
                 ExpressionAttributeValues={
                     ":true": {"BOOL": True},
                     ":false": {"BOOL": False},
