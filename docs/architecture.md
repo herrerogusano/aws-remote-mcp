@@ -49,15 +49,30 @@ The central registry allows automatic execution only for operations classified
 as `free_verified_read`; missing operations fail as `unknown`. Other supported
 classifications are `controlled_billable`, `write`, and `sensitive_read`.
 
-External writes use an opaque confirmation token backed by an in-memory record
-that binds caller fingerprint, action, canonical payload digest, expiry, and
-single use. Confirmation is consumed before calling a downstream adapter so an
-ambiguous failure cannot be blindly retried. Durable/distributed confirmation
-storage is intentionally deferred until the deployment architecture requires it.
+External writes use an opaque confirmation token that binds caller fingerprint,
+action, canonical payload digest, expiry, and single use. Local previews use an
+in-memory store. The optional remote integration profile uses DynamoDB so prepare
+and execute can occur in different Lambda invocations; one conditional update
+atomically changes the record from unconsumed to consumed. Confirmation is
+consumed before calling a downstream adapter, so an ambiguous failure cannot be
+blindly retried. Only a SHA-256 token digest is stored.
 
 Application results have a common status, data, warnings, sanitized errors,
 counters, and optional confirmation metadata. Adapter output is size-bounded,
 and every execution permits at most one external-write attempt.
+
+## External integration boundary
+
+The deployment profile is disabled by default. When explicitly enabled, it adds
+two prepare tools and two execute tools for one fixed Telegram alias and one
+fixed Trello board/list alias. The exact aliases are checked before confirmation;
+provider identifiers are resolved only inside the adapter.
+
+One Standard SecureString in Parameter Store contains both providers' bounded
+configuration. The value is fetched and decrypted only after a confirmation has
+been consumed. Telegram and Trello adapters then make exactly one HTTPS POST with
+a four-second timeout and no retry. Credentials, destination identifiers, raw
+provider responses and raw errors never enter tool results.
 
 ## AWS inventory boundary
 

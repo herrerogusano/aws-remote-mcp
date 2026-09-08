@@ -114,6 +114,13 @@ retry for this exact error, after token and elapsed-time checks. This recovery i
 tested offline. The subsequent real inventory validation passed without needing
 the recovery branch, so that branch has not been exercised against AWS.
 
-Prepare the confirmed Telegram and Trello integration milestone offline.
-Credentials, deployment changes and first external writes remain separately
-reviewed operational actions. Keep DEV closed between validation windows.
+The confirmed Telegram and Trello integration milestone is prepared offline.
+Remote confirmation uses a conditional DynamoDB update across Lambda invocations;
+the optional table is off by default and capped at one read and write request
+unit per second. Provider configuration uses one Standard SecureString and is
+loaded only after confirmation consumption. Both adapters make one bounded POST
+without retries, and the complete offline suite passes.
+
+The next gate is provisioning real provider credentials and the SecureString,
+then deploying the opt-in infrastructure while DEV remains closed. First
+Telegram and Trello writes require a separate, explicit validation confirmation.
