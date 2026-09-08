@@ -35,6 +35,12 @@ error translation without depending on another runtime package.
 The remote design adds distinct caller authorization, Lambda IAM, downstream
 credentials, per-tool structured audit records, and API Gateway throttling.
 
+Per-tool audit records use an explicit safe schema: request ID, pseudonymous
+caller fingerprint, allowlisted tool name, normalized status, issue codes and
+bounded counters. Arguments, result data, previews, confirmation metadata,
+provider identifiers and error messages are structurally unavailable to the
+audit builder. See `docs/structured-audit-logging.md`.
+
 ## Transport-independent core
 
 ```text

@@ -159,6 +159,33 @@ def test_dev_diagnostic_identifies_environment(monkeypatch: pytest.MonkeyPatch) 
     assert content["external_side_effects"] is False
 
 
+def test_lambda_emits_sanitized_tool_audit_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    messages: list[str] = []
+    monkeypatch.setattr(
+        "aws_remote_mcp.lambda_handler.AUDIT_LOGGER.info", messages.append
+    )
+    event = http_api_event(
+        "tools/call",
+        params={"name": "diagnostico", "arguments": {}},
+        name="diagnostico",
+    )
+
+    response = handler(event, FakeLambdaContext())
+    record = json.loads(messages[0])
+
+    assert response["statusCode"] == 200
+    assert record["event_type"] == "mcp_tool_result"
+    assert record["request_id"] == "lambda-request-1"
+    assert record["tool"] == "diagnostico"
+    assert record["caller_fingerprint"]
+    assert "arguments" not in record
+    assert "confirmation" not in record
+
+
 def test_lambda_inventory_uses_injected_bounded_adapter(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

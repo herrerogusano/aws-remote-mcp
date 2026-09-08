@@ -311,3 +311,17 @@ granting Lambda access to that exact parameter and mapping the MCP tool solely t
 the fixed `portfolio/inbox` list identifier. Never accept a provider destination
 or credential from tool arguments. Revoke and replace the token immediately if
 disclosure is suspected.
+
+## D-029 - Allowlisted best-effort audit records after tool completion
+
+Emit one structured record after each MCP tool result using a builder whose API
+does not accept arguments, result data or confirmation metadata. Record only the
+environment, Lambda request ID, caller fingerprint, allowlisted tool name,
+normalized status, issue codes and bounded counters. Use the existing
+seven-day-retention Lambda log group rather than adding a persistent audit
+service.
+
+Audit emission is best effort and must not replace a completed tool result. In
+particular, a logging failure after a provider write cannot create an ambiguous
+client error that encourages a duplicate retry. DynamoDB confirmation state is
+the authoritative single-use control; logs are evidence, not a transaction.
