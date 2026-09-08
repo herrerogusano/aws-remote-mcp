@@ -48,15 +48,18 @@ MCP client
   deployed and verified in CloudWatch without additional provider writes.
 - Complete Telegram and Trello transport-failure matrix and conservative final
   validation-window cost review.
+- Reviewed manual promotion to `main` and an isolated, empty PROD deployment
+  with independent Cognito authorization and both execution gates closed.
 
 ## Next milestones
 
 The portfolio-ready DEV implementation is complete. Optional future expansion:
 
-1. Add an isolated PROD environment if a persistent public demonstration is
-   required.
-2. Prove manual DEV/PROD promotion, then consider GitHub OIDC delivery.
-3. Add a recorded demonstration while retaining the closed-by-default posture.
+1. Consider GitHub OIDC delivery after the manual promotion process has remained
+   stable.
+2. Add a recorded demonstration while retaining the closed-by-default posture.
+3. Design a separate bounded PROD validation procedure only if live public
+   production access becomes necessary.
 
 ## Success criteria
 

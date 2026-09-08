@@ -57,8 +57,8 @@ feature/* -> develop -> DEV
               +---- promotion PR -> main -> PROD
 ```
 
-DEV is the validated integration environment. PROD is independently deployable
-from `main` and remains closed by default, without copied identities or provider
+DEV is the validated integration environment. An isolated PROD is deployed from
+`main` and remains closed by default, without copied identities or provider
 credentials. Infrastructure changes require the review described in
 `docs/operational-approvals.md`.
 
@@ -101,4 +101,5 @@ For a portfolio review, start with `docs/demo.md`, `docs/architecture.md` and
 closed AWS endpoint to be opened.
 
 The isolated creation procedure for PROD is documented in
-`docs/prod-deployment-runbook.md`.
+`docs/prod-deployment-runbook.md`; its verified state is recorded in
+`docs/prod-deployment-evidence.md`.
