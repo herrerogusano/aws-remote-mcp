@@ -74,8 +74,8 @@ any remote opening remains a separate gated action.
 
 The deployed closed DEV inventory implementation permits only one non-paginated
 `ListFunctions` request and one non-paginated API Gateway v2 `GetApis` request,
-with ten results per service and no SDK retries. Its IAM is deployed, but the
-collector has not been invoked; real validation remains a separate approval.
+with ten results per service and no SDK retries. Real validation passed on
+2026-09-07 with two reads, ten resources and no writes; DEV was closed afterward.
 See `docs/aws-inventory.md`.
 
 ## Safety baseline

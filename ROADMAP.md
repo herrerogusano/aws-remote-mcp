@@ -37,20 +37,15 @@ MCP client
 - Bounded remote MCP Inspector validation through authorization code, PKCE and
   TOTP, followed by independently verified cleanup.
 - Least-privilege AWS inventory adapter and exact read IAM deployed to closed
-  DEV for Lambda and API Gateway v2, pending separate real-call validation.
+  DEV for Lambda and API Gateway v2, validated remotely on 2026-09-07 with two
+  reads, ten resources and zero writes, followed by verified cleanup.
 
 ## Next milestones
 
-The latest real-inventory attempt reached successful OAuth but stopped on an
-Inspector transport lifecycle error. A bounded discovery recovery is prepared
-and tested offline; the first milestone below remains pending.
-
-1. Validate the deployed least-privilege AWS inventory collectors in a
-   separately approved bounded DEV window.
-2. Add confirmed Telegram and Trello actions with separate credentials.
-3. Complete structured audit logging, fault tests and cost review.
-4. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
-5. Publish architecture, threat model, demo and operating runbooks.
+1. Add confirmed Telegram and Trello actions with separate credentials.
+2. Complete structured audit logging, fault tests and cost review.
+3. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
+4. Publish architecture, threat model, demo and operating runbooks.
 
 ## Success criteria
 
