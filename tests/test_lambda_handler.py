@@ -308,7 +308,7 @@ def test_lambda_external_write_uses_confirmation_bound_to_gateway_caller(
     trello = FakeTrelloAdapter()
     monkeypatch.setattr(
         "aws_remote_mcp.lambda_handler._external_components",
-        lambda _region: (confirmations, telegram, trello),
+        lambda _region, _environment: (confirmations, telegram, trello),
     )
     prepare_event = http_api_event(
         "tools/call",
