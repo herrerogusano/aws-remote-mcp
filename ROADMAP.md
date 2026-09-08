@@ -39,17 +39,17 @@ MCP client
 - Least-privilege AWS inventory adapter and exact read IAM deployed to closed
   DEV for Lambda and API Gateway v2, validated remotely on 2026-09-07 with two
   reads, ten resources and zero writes, followed by verified cleanup.
-- Offline Telegram and Trello adapters with one-attempt writes, persistent
-  single-use confirmation, conditional least-privilege infrastructure and a
+- Telegram and Trello adapters with one-attempt writes, persistent single-use
+  confirmation, conditional least-privilege infrastructure and a
   zero-fixed-cost Parameter Store credential design.
+- Closed-API DEV validation of one confirmed Telegram message and one confirmed
+  Trello card, followed by independent shutdown verification.
 
 ## Next milestones
 
-1. Provision scoped Telegram/Trello credentials and validate confirmed actions
-   in a bounded DEV window.
-2. Complete structured audit logging, fault tests and final cost review.
-3. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
-4. Publish architecture, threat model, demo and operating runbooks.
+1. Complete structured audit logging, provider fault tests and final cost review.
+2. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
+3. Publish architecture, threat model, demo and operating runbooks.
 
 ## Success criteria
 

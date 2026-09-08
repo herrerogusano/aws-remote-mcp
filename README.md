@@ -5,10 +5,10 @@ for AWS Lambda and API Gateway.
 
 The project exposes a local MCP server over current Streamable HTTP and has a
 closed-by-default DEV foundation deployed in AWS. The application includes a
-bounded, read-only AWS inventory adapter. Confirmed Telegram/Trello actions and
-their cost-bounded state are prepared behind a disabled-by-default deployment
-flag; the remote endpoint and its compute remain disabled outside a separately
-approved validation window.
+bounded, read-only AWS inventory adapter plus confirmed Telegram and Trello
+actions backed by persistent single-use state. Their opt-in DEV profile has been
+validated by direct Lambda invocation while the public endpoint remained closed;
+the endpoint and its compute stay disabled outside separately approved windows.
 
 ## Development
 
@@ -45,9 +45,9 @@ Current-protocol clients can discover and call:
 - `preparar_tarjeta_trello`
 
 Local development returns a deterministic fixture for AWS inventory and never
-contacts AWS. Execute/send/create tools are excluded from the default local and
-remote profiles; their opt-in design is documented in
-`docs/external-integrations.md`.
+contacts AWS. Execute/send/create tools remain excluded from the default local
+profile and are exposed remotely only by the explicitly enabled integration
+profile documented in `docs/external-integrations.md`.
 
 ## Branch and environment model
 
@@ -67,8 +67,10 @@ concurrency is zero. A separately approved test window is limited to five minute
 with an independent scheduled shutdown and request-volume tripwire. See
 `docs/cost-safety.md`.
 
-The deployed Lambda contract has also been validated directly while the API
-remained disabled. See `docs/direct-validation-evidence.md`.
+The deployed Lambda contract, including one confirmed Telegram message and one
+confirmed Trello card, has also been validated directly while the API remained
+disabled. See `docs/direct-validation-evidence.md` and
+`docs/external-integrations.md`.
 
 The selected OAuth/OIDC profile and its deployed single-user Cognito foundation
 are documented in `docs/oauth-provider-evaluation.md` and
