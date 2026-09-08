@@ -24,6 +24,7 @@ from aws_remote_mcp.adapters.protocols import (
     TelegramAdapter,
     TrelloAdapter,
 )
+from aws_remote_mcp.core.audit import build_tool_audit_record
 from aws_remote_mcp.core.confirmation import ConfirmationGuard, ConfirmationProvider
 from aws_remote_mcp.core.models import CallerContext, ToolIssue, ToolResult
 from aws_remote_mcp.core.operations import build_default_registry
@@ -47,6 +48,7 @@ LOCAL_ALLOWED_ORIGINS = (
     "http://[::1]:*",
 )
 LOCAL_CALLER = CallerContext("local://aws-remote-mcp", "local-development")
+type AuditSink = Callable[[dict[str, Any]], None]
 
 
 def _serialize_issue(issue: ToolIssue) -> dict[str, Any]:
@@ -153,6 +155,8 @@ def create_server(
     trello_destinations: frozenset[tuple[str, str]] = frozenset(
         {("local-preview", "local-preview")}
     ),
+    audit_sink: AuditSink | None = None,
+    audit_request_id: str = "local-request",
 ) -> MCPServer:
     """Create a fresh server and isolate mutable fake/confirmation state."""
 
@@ -177,10 +181,33 @@ def create_server(
         trello_destinations=trello_destinations,
     )
 
+    def audited_result(
+        tool_name: str,
+        result: ToolResult,
+        caller: CallerContext | None = None,
+    ) -> dict[str, Any]:
+        if audit_sink is not None:
+            try:
+                record = build_tool_audit_record(
+                    tool=tool_name,
+                    result=result,
+                    caller=caller or caller_provider(),
+                    environment=environment,
+                    request_id=audit_request_id,
+                )
+                audit_sink(dict(record))
+            except Exception:
+                # Audit failure must not turn a completed provider write into an
+                # ambiguous tool response that invites a duplicate retry.
+                pass
+        return serialize_tool_result(result)
+
     @server.tool(name="diagnostico", structured_output=True)
     def diagnostic() -> dict[str, Any]:
         """Return a non-sensitive local readiness result without network calls."""
 
+        if audit_sink is not None:
+            audited_result("diagnostico", ToolResult(status="ok"))
         return {
             "status": "ok",
             "server": SERVER_NAME,
@@ -195,7 +222,7 @@ def create_server(
         """Return bounded read-only Lambda and API Gateway inventory."""
 
         result = tools.run_aws_operation("aws.inventory.list", {})
-        return serialize_tool_result(result)
+        return audited_result("listar_inventario_aws", result)
 
     if include_previews and include_external_writes:
 
@@ -205,10 +232,9 @@ def create_server(
         ) -> dict[str, Any]:
             """Preview one allowlisted Telegram message and issue confirmation."""
 
-            result = tools.prepare_telegram_message(
-                caller_provider(), destination, message
-            )
-            return serialize_tool_result(result)
+            caller = caller_provider()
+            result = tools.prepare_telegram_message(caller, destination, message)
+            return audited_result("preparar_mensaje_telegram", result, caller)
 
         @server.tool(name="enviar_mensaje_telegram", structured_output=True)
         def execute_remote_telegram_message(
@@ -216,10 +242,11 @@ def create_server(
         ) -> dict[str, Any]:
             """Consume confirmation before one Telegram write attempt."""
 
+            caller = caller_provider()
             result = tools.execute_telegram_message(
-                caller_provider(), confirmation, destination, message
+                caller, confirmation, destination, message
             )
-            return serialize_tool_result(result)
+            return audited_result("enviar_mensaje_telegram", result, caller)
 
         @server.tool(name="preparar_tarjeta_trello", structured_output=True)
         def prepare_remote_trello_card(
@@ -227,10 +254,11 @@ def create_server(
         ) -> dict[str, Any]:
             """Preview one allowlisted Trello card and issue confirmation."""
 
+            caller = caller_provider()
             result = tools.prepare_trello_card(
-                caller_provider(), board, list_name, title, description
+                caller, board, list_name, title, description
             )
-            return serialize_tool_result(result)
+            return audited_result("preparar_tarjeta_trello", result, caller)
 
         @server.tool(name="crear_tarjeta_trello", structured_output=True)
         def execute_remote_trello_card(
@@ -242,15 +270,16 @@ def create_server(
         ) -> dict[str, Any]:
             """Consume confirmation before one Trello write attempt."""
 
+            caller = caller_provider()
             result = tools.execute_trello_card(
-                caller_provider(),
+                caller,
                 confirmation,
                 board,
                 list_name,
                 title,
                 description,
             )
-            return serialize_tool_result(result)
+            return audited_result("crear_tarjeta_trello", result, caller)
 
     elif include_previews:
 
@@ -258,23 +287,23 @@ def create_server(
         def prepare_telegram_message(message: str) -> dict[str, Any]:
             """Preview a local Telegram message with confirmation metadata."""
 
-            result = tools.prepare_telegram_message(
-                caller_provider(), "local-preview", message
-            )
-            return serialize_tool_result(result)
+            caller = caller_provider()
+            result = tools.prepare_telegram_message(caller, "local-preview", message)
+            return audited_result("preparar_mensaje_telegram", result, caller)
 
         @server.tool(name="preparar_tarjeta_trello", structured_output=True)
         def prepare_trello_card(title: str, description: str = "") -> dict[str, Any]:
             """Preview a local Trello card with confirmation metadata."""
 
+            caller = caller_provider()
             result = tools.prepare_trello_card(
-                caller_provider(),
+                caller,
                 "local-preview",
                 "local-preview",
                 title,
                 description,
             )
-            return serialize_tool_result(result)
+            return audited_result("preparar_tarjeta_trello", result, caller)
 
     return server
 
@@ -307,6 +336,8 @@ def create_app(
     trello_destinations: frozenset[tuple[str, str]] = frozenset(
         {("local-preview", "local-preview")}
     ),
+    audit_sink: AuditSink | None = None,
+    audit_request_id: str = "local-request",
 ) -> Starlette:
     """Build the stateless, JSON-response ASGI application."""
 
@@ -321,6 +352,8 @@ def create_app(
         trello_adapter=trello_adapter,
         telegram_destinations=telegram_destinations,
         trello_destinations=trello_destinations,
+        audit_sink=audit_sink,
+        audit_request_id=audit_request_id,
     ).streamable_http_app(
         streamable_http_path=MCP_PATH,
         json_response=True,
@@ -373,6 +406,8 @@ def create_gateway_app(
     trello_adapter: TrelloAdapter | None = None,
     telegram_destinations: frozenset[str] = frozenset(),
     trello_destinations: frozenset[tuple[str, str]] = frozenset(),
+    audit_sink: AuditSink | None = None,
+    audit_request_id: str = "gateway-request",
 ) -> Starlette:
     """Build the API Gateway app with public RFC 9728 metadata.
 
@@ -393,6 +428,8 @@ def create_gateway_app(
         trello_adapter=trello_adapter,
         telegram_destinations=telegram_destinations,
         trello_destinations=trello_destinations,
+        audit_sink=audit_sink,
+        audit_request_id=audit_request_id,
     )
     app.routes.extend(
         create_protected_resource_routes(

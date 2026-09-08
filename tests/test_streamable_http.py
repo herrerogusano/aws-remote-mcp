@@ -18,6 +18,7 @@ from starlette.testclient import TestClient
 from aws_remote_mcp.adapters.fakes import FakeTelegramAdapter, FakeTrelloAdapter
 from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.http_server import (
+    LOCAL_CALLER,
     MAX_HTTP_REQUEST_BYTES,
     create_app,
 )
@@ -96,6 +97,66 @@ def test_tool_call_returns_structured_content(http_client: TestClient) -> None:
     assert result["isError"] is False
     assert result["structuredContent"]["transport"] == "streamable-http"
     assert result["structuredContent"]["external_side_effects"] is False
+
+
+def test_tool_call_emits_allowlisted_audit_record() -> None:
+    records: list[dict[str, object]] = []
+    app = create_app(
+        allowed_hosts=("testserver",),
+        audit_sink=records.append,
+        audit_request_id="request-123",
+    )
+
+    with TestClient(app) as client:
+        body, headers = modern_request(
+            "tools/call",
+            params={"name": "diagnostico", "arguments": {}},
+            name="diagnostico",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+
+    assert response.status_code == 200
+    assert records == [
+        {
+            "schema_version": 1,
+            "event_type": "mcp_tool_result",
+            "environment": "local",
+            "request_id": "request-123",
+            "caller_fingerprint": LOCAL_CALLER.fingerprint,
+            "tool": "diagnostico",
+            "status": "ok",
+            "warning_codes": [],
+            "error_codes": [],
+            "counters": {
+                "sdk_requests": 0,
+                "resources": 0,
+                "external_writes_attempted": 0,
+                "external_writes_succeeded": 0,
+            },
+        }
+    ]
+
+
+def test_audit_sink_failure_does_not_change_tool_response() -> None:
+    def failing_sink(_record: dict[str, Any]) -> None:
+        raise RuntimeError("audit unavailable")
+
+    app = create_app(
+        allowed_hosts=("testserver",),
+        audit_sink=failing_sink,
+        audit_request_id="request-123",
+    )
+
+    with TestClient(app) as client:
+        body, headers = modern_request(
+            "tools/call",
+            params={"name": "diagnostico", "arguments": {}},
+            name="diagnostico",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+
+    assert response.status_code == 200
+    assert response_json(response)["result"]["structuredContent"]["status"] == "ok"
 
 
 def test_external_tools_require_prepare_then_exact_confirmation() -> None:

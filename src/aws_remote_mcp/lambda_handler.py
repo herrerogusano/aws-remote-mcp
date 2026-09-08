@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib
+import json
+import logging
 import os
 from typing import Any
 
@@ -25,6 +27,8 @@ from aws_remote_mcp.security.authorization import AuthorizationConfig
 
 TELEGRAM_DESTINATIONS = frozenset({"owner"})
 TRELLO_DESTINATIONS = frozenset({("portfolio", "inbox")})
+AUDIT_LOGGER = logging.getLogger("aws_remote_mcp.audit")
+AUDIT_LOGGER.setLevel(logging.INFO)
 
 
 def _required_environment(name: str) -> str:
@@ -177,6 +181,10 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         trello_adapter=trello,
         telegram_destinations=TELEGRAM_DESTINATIONS,
         trello_destinations=TRELLO_DESTINATIONS,
+        audit_sink=lambda record: AUDIT_LOGGER.info(
+            json.dumps(record, separators=(",", ":"), sort_keys=True)
+        ),
+        audit_request_id=str(getattr(context, "aws_request_id", "unknown")),
     )
     adapter = Mangum(
         app,
