@@ -19,6 +19,7 @@ MAX_PROVIDER_RESPONSE_BYTES = 16 * 1024
 TELEGRAM_TOKEN_PATTERN = re.compile(r"^[0-9]{5,20}:[A-Za-z0-9_-]{20,128}$")
 TELEGRAM_CHAT_PATTERN = re.compile(r"^(?:-?[0-9]{1,20}|@[A-Za-z0-9_]{5,32})$")
 TRELLO_CREDENTIAL_PATTERN = re.compile(r"^[A-Za-z0-9_-]{8,256}$")
+TRELLO_LIST_ID_PATTERN = re.compile(r"^[A-Fa-f0-9]{24}$")
 
 type HttpTransport = Callable[[Request, float], tuple[int, bytes]]
 type AwsClientFactory = Callable[[str, str], Any]
@@ -167,7 +168,10 @@ class TrelloHttpAdapter:
         ):
             raise ValueError("Trello credential format is invalid.")
         if not destinations or any(
-            not board or not list_name or not list_id
+            not board
+            or not list_name
+            or not isinstance(list_id, str)
+            or TRELLO_LIST_ID_PATTERN.fullmatch(list_id) is None
             for (board, list_name), list_id in destinations.items()
         ):
             raise ValueError("Trello destinations are invalid.")
@@ -354,6 +358,8 @@ class SsmTrelloAdapter:
                 not isinstance(board_alias, str)
                 or not isinstance(list_alias, str)
                 or not isinstance(list_id, str)
+                or TRELLO_LIST_ID_PATTERN.fullmatch(list_id) is None
+                or (board_alias, list_alias) in destinations
             ):
                 raise AdapterError(
                     "integration_config_invalid", "Trello configuration is invalid."
