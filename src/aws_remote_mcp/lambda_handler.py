@@ -50,7 +50,7 @@ def _boto_client(service: str, region: str) -> Any:
 
 
 def _external_components(
-    region: str,
+    region: str, environment: str
 ) -> tuple[ConfirmationProvider, TelegramAdapter, TrelloAdapter]:
     table_name = _required_environment("CONFIRMATION_TABLE_NAME")
     parameter_name = _required_environment("INTEGRATION_CONFIG_PARAMETER")
@@ -60,6 +60,7 @@ def _external_components(
     )
     config = SsmIntegrationConfigProvider(
         parameter_name=parameter_name,
+        environment=environment,
         region=region,
         client_factory=_boto_client,
     )
@@ -139,9 +140,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Create one stateless ASGI app per event and preserve SDK lifespan rules."""
 
     environment = _required_environment("APP_ENVIRONMENT")
-    if environment != "dev":
+    if environment not in {"dev", "prod"}:
         raise RuntimeError(
-            "This Lambda deployment is restricted to APP_ENVIRONMENT=dev."
+            "APP_ENVIRONMENT must identify the isolated dev or prod deployment."
         )
     allowed_host = _api_gateway_host(event)
     authorization = AuthorizationConfig(
@@ -167,7 +168,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     trello: TrelloAdapter | None = None
     if external_enabled:
         confirmations, telegram, trello = _external_components(
-            _required_environment("AWS_REGION")
+            _required_environment("AWS_REGION"), environment
         )
     app = create_gateway_app(
         authorization=authorization,

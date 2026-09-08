@@ -9,10 +9,10 @@ def template_text() -> str:
     return TEMPLATE.read_text(encoding="utf-8")
 
 
-def test_auth_template_is_dev_only_and_not_implicitly_deployable() -> None:
+def test_auth_template_supports_only_isolated_dev_and_prod() -> None:
     template = template_text()
 
-    assert "AllowedValues:\n      - dev" in template
+    assert "AllowedValues:\n      - dev\n      - prod" in template
     assert "CognitoDomainPrefix:" in template
     assert "^(?!.*(?:aws|amazon|cognito))" in template
     assert "McpResourceUri:" in template

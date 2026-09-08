@@ -276,6 +276,7 @@ def test_ssm_config_is_loaded_once_and_only_when_adapter_executes() -> None:
 
     config = SsmIntegrationConfigProvider(
         parameter_name="/portfolio/aws-remote-mcp/dev/integrations",
+        environment="dev",
         region="eu-west-1",
         client_factory=client_factory,
     )
@@ -344,6 +345,7 @@ def test_ssm_configuration_failures_are_single_attempt_and_sanitized(
 ) -> None:
     config = SsmIntegrationConfigProvider(
         parameter_name="/portfolio/aws-remote-mcp/dev/integrations",
+        environment="dev",
         region="eu-west-1",
         client_factory=lambda _service, _region: client,
     )
@@ -354,6 +356,25 @@ def test_ssm_configuration_failures_are_single_attempt_and_sanitized(
     assert captured.value.code == "integration_config_unavailable"
     assert "secret" not in str(captured.value)
     assert client.calls == 1
+
+
+@pytest.mark.parametrize(
+    ("environment", "parameter_name"),
+    [
+        ("dev", "/portfolio/aws-remote-mcp/prod/integrations"),
+        ("prod", "/portfolio/aws-remote-mcp/dev/integrations"),
+        ("staging", "/portfolio/aws-remote-mcp/staging/integrations"),
+    ],
+)
+def test_ssm_configuration_rejects_cross_environment_paths(
+    environment: str, parameter_name: str
+) -> None:
+    with pytest.raises(ValueError, match="environment"):
+        SsmIntegrationConfigProvider(
+            parameter_name=parameter_name,
+            environment=environment,
+            region="eu-west-1",
+        )
 
 
 def test_ssm_trello_config_maps_only_configured_alias() -> None:
@@ -376,6 +397,7 @@ def test_ssm_trello_config_maps_only_configured_alias() -> None:
     )
     config = SsmIntegrationConfigProvider(
         parameter_name="/portfolio/aws-remote-mcp/dev/integrations",
+        environment="dev",
         region="eu-west-1",
         client_factory=lambda _service, _region: ssm,
     )
@@ -413,6 +435,7 @@ def test_ssm_trello_config_rejects_duplicate_aliases() -> None:
     )
     config = SsmIntegrationConfigProvider(
         parameter_name="/portfolio/aws-remote-mcp/dev/integrations",
+        environment="dev",
         region="eu-west-1",
         client_factory=lambda _service, _region: ssm,
     )

@@ -57,8 +57,9 @@ feature/* -> develop -> DEV
               +---- promotion PR -> main -> PROD
 ```
 
-The DEV environment exists in AWS and remains closed by default; PROD does not
-exist. Infrastructure changes require the review described in
+DEV is the validated integration environment. PROD is independently deployable
+from `main` and remains closed by default, without copied identities or provider
+credentials. Infrastructure changes require the review described in
 `docs/operational-approvals.md`.
 
 The prepared DEV stack is closed by default: its execute-api endpoint is disabled,
@@ -98,3 +99,6 @@ is mandatory before executing it.
 For a portfolio review, start with `docs/demo.md`, `docs/architecture.md` and
 `docs/threat-model.md`. They present the verified system without requiring the
 closed AWS endpoint to be opened.
+
+The isolated creation procedure for PROD is documented in
+`docs/prod-deployment-runbook.md`.

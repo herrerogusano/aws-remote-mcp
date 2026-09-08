@@ -18,7 +18,7 @@ def test_ssm_parameter_uses_non_reserved_namespace_everywhere() -> None:
 
     assert PARAMETER_PATH in provision
     assert f"Default: {PARAMETER_PATH}" in template
-    assert 'startswith("/portfolio/aws-remote-mcp/dev/")' in runtime
+    assert 'expected_prefix = f"/portfolio/aws-remote-mcp/{environment}/"' in runtime
     assert "Default: /aws-remote-mcp/" not in template
 
 

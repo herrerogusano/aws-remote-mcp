@@ -9,10 +9,10 @@ def template_text() -> str:
     return TEMPLATE.read_text(encoding="utf-8")
 
 
-def test_template_is_dev_only_and_bounded() -> None:
+def test_template_supports_only_isolated_dev_and_prod() -> None:
     template = template_text()
 
-    assert "AllowedValues:\n      - dev" in template
+    assert "AllowedValues:\n      - dev\n      - prod" in template
     assert "Runtime: python3.13" in template
     assert "MemorySize: 128" in template
     assert "Timeout: 10" in template
@@ -120,5 +120,5 @@ def test_automatic_shutdown_is_wired_to_exact_resources() -> None:
     assert "Service: scheduler.amazonaws.com" in template
     assert "Service: cloudwatch.amazonaws.com" in template
     assert "aws-remote-mcp-${Environment}-request-kill-switch" in template
-    assert "close-only-this-dev-endpoint" in template
+    assert "close-only-this-environment-endpoint" in template
     assert "aws:SourceArn: !GetAtt SafetyShutdownScheduleGroup.Arn" in template
