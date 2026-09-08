@@ -49,15 +49,13 @@ def test_dpapi_handoff_is_bounded_and_deleted_only_after_creation() -> None:
     assert 'Join-Path $env:LOCALAPPDATA "aws-remote-mcp' in capture
     assert "$parameterCreated = $true" in provision
     cleanup = provision.index("$parameterCreated -and")
-    removal = provision.index(
-        "Remove-Item -LiteralPath $resolvedCachePath", cleanup
-    )
+    removal = provision.index("Remove-Item -LiteralPath $resolvedCachePath", cleanup)
     assert removal > cleanup
 
 
 def test_plaintext_credentials_are_not_cli_arguments() -> None:
     script = PROVISION.read_text(encoding="utf-8")
 
-    assert "--value \"file://$resolvedTemporaryPath\"" in script
+    assert '--value "file://$resolvedTemporaryPath"' in script
     assert "--value $configuration" not in script
     assert "--with-decryption" not in script
