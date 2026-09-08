@@ -1,1 +1,1 @@
-"""Fail-closed controls for the temporary DEV validation window."""
+"""Fail-closed controls for a temporary validation window."""

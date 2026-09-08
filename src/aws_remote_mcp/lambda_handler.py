@@ -1,4 +1,4 @@
-"""API Gateway HTTP API v2 entry point for the safe DEV skeleton."""
+"""API Gateway HTTP API v2 entry point for an isolated environment."""
 
 from __future__ import annotations
 
