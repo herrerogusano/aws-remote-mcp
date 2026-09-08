@@ -216,7 +216,7 @@ class SsmIntegrationConfigProvider:
         region: str,
         client_factory: AwsClientFactory = _aws_client,
     ) -> None:
-        if not parameter_name.startswith("/aws-remote-mcp/dev/"):
+        if not parameter_name.startswith("/portfolio/aws-remote-mcp/dev/"):
             raise ValueError("Integration parameter path is outside the DEV namespace.")
         if region != "eu-west-1":
             raise ValueError("Integration configuration is restricted to eu-west-1.")

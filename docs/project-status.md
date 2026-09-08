@@ -114,13 +114,15 @@ retry for this exact error, after token and elapsed-time checks. This recovery i
 tested offline. The subsequent real inventory validation passed without needing
 the recovery branch, so that branch has not been exercised against AWS.
 
-The confirmed Telegram and Trello integration milestone is prepared offline.
-Remote confirmation uses a conditional DynamoDB update across Lambda invocations;
-the optional table is off by default and capped at one read and write request
-unit per second. Provider configuration uses one Standard SecureString and is
-loaded only after confirmation consumption. Both adapters make one bounded POST
-without retries, and the complete offline suite passes.
+The confirmed Telegram and Trello integration profile is deployed in closed
+DEV. The Standard SecureString exists at the valid, non-reserved path
+`/portfolio/aws-remote-mcp/dev/integrations`; its temporary DPAPI-encrypted local
+handoff was deleted after provisioning. The on-demand confirmation table is
+active, encrypted, TTL-enabled and capped at one read and write request unit per
+second. Its exact three DynamoDB actions and the exact SSM `GetParameter` resource
+were independently audited. API Gateway remains disabled, Lambda concurrency is
+zero and route throttling remains one request per second with burst one.
 
-The next gate is provisioning real provider credentials and the SecureString,
-then deploying the opt-in infrastructure while DEV remains closed. First
-Telegram and Trello writes require a separate, explicit validation confirmation.
+The next gate is one bounded DEV validation window. The first harmless Telegram
+message and disposable Trello card are visible external writes and require a
+separate explicit confirmation.

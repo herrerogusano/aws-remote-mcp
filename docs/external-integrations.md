@@ -2,11 +2,14 @@
 
 ## State
 
-The implementation and conditional infrastructure are prepared and tested
-offline. They are not enabled in AWS, no provider credential exists in the
-project, and no external message or card has been created by this milestone.
+The implementation and conditional infrastructure are deployed in DEV while
+the public endpoint and Lambda execution remain closed. Provider configuration
+is stored in one Standard SecureString; no provider credential exists in the
+repository, deployment parameters, outputs or logs. No external message or card
+has been created by this milestone.
 
-`EnableExternalIntegrations=false` is the deployment default. Enabling it adds:
+`EnableExternalIntegrations=false` remains the template default. The explicitly
+approved DEV deployment currently enables:
 
 - one DynamoDB on-demand confirmation table with 1 RRU/s and 1 WRU/s maximums;
 - exact `PutItem`, `UpdateItem` and `GetItem` access to that table;
@@ -31,8 +34,8 @@ This ordering prefers a missed write over a duplicate message or card.
 
 ## SecureString contract
 
-The exact parameter is a Standard `SecureString`, no larger than 4 KiB, under
-`/aws-remote-mcp/dev/`. Its JSON shape is:
+The exact parameter is a Standard `SecureString`, no larger than 4 KiB, at
+`/portfolio/aws-remote-mcp/dev/integrations`. Its JSON shape is:
 
 ```json
 {
@@ -63,20 +66,19 @@ must inspect metadata only.
 
 ## Next gated operations
 
-Provider setup and AWS activation are deliberately separate:
+Provider setup and AWS activation remain operationally separate:
 
-1. Create or select a Telegram bot and exact destination.
-2. Create a Trello token limited to the shortest practical expiry and required
-   write scope, then identify one exact list.
-3. Create the Standard SecureString and verify only its type, tier, name and ARN.
-4. Deploy with `EnableExternalIntegrations=true` while the endpoint and Lambda
-   remain closed, then audit the table limits and exact IAM resources.
-5. Open one bounded DEV window and separately confirm one harmless Telegram
+1. Completed: create the Telegram bot and exact private destination.
+2. Completed: authorize Trello and resolve one exact `MCP Inbox` list.
+3. Completed: create the Standard SecureString and verify metadata only.
+4. Completed: deploy with `EnableExternalIntegrations=true` while closed and
+   audit table limits, encryption, TTL, IAM and shutdown invariants.
+5. Next: open one bounded DEV window and separately confirm one harmless Telegram
    message and one disposable Trello card.
 6. Close and independently verify every shutdown invariant.
 
-Steps 1-4 change external or AWS state and require an impact review. Step 5
-creates visible external content and requires a new explicit confirmation.
+Step 5 creates visible external content and requires a new explicit
+confirmation.
 
 ## Primary references
 

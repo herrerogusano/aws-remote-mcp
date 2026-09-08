@@ -29,8 +29,8 @@ Parameters:
     Description: Create bounded confirmation state and expose confirmed writes.
   IntegrationConfigParameterName:
     Type: String
-    Default: /aws-remote-mcp/dev/integrations
-    AllowedPattern: "^/aws-remote-mcp/dev/[a-z0-9-]+$"
+    Default: /portfolio/aws-remote-mcp/dev/integrations
+    AllowedPattern: "^/portfolio/aws-remote-mcp/dev/[a-z0-9-]+$"
     Description: Exact Standard SecureString parameter containing integration config.
 
 Conditions:
