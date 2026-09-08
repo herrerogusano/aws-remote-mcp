@@ -52,3 +52,45 @@ not claim that the API Gateway IAM data path has been validated.
 ## Pricing source
 
 - https://aws.amazon.com/lambda/pricing/
+
+## Confirmed external integration validation
+
+Date: 2026-09-08  
+Region: `eu-west-1`
+
+The opt-in DEV integration profile was validated through direct Lambda
+invocation while API Gateway remained disabled. A five-minute independent
+Scheduler deadline was installed before removing concurrency zero, and the
+local `finally` path restored every shutdown invariant.
+
+The first execution exposed a DynamoDB expression error: the application field
+`consumed` was not mapped through `ExpressionAttributeNames`. The conditional
+update failed before the provider boundary, the confirmation remained
+unconsumed and no Telegram request was attempted. The expression and its
+regression coverage were corrected and deployed in closed state before a new
+validation.
+
+The successful execution performed seven bounded invocations:
+
+| Operation | Result |
+| --- | --- |
+| `tools/list` | Exact six-tool integration profile |
+| `diagnostico` | `ok`, DEV, no external side effects |
+| `listar_inventario_aws` | Two reads, at most 20 resources, zero writes |
+| Telegram prepare | Exact destination and payload confirmation issued |
+| Telegram execute | One confirmation consumed; one provider write succeeded |
+| Trello prepare | Exact board/list and payload confirmation issued |
+| Trello execute | One confirmation consumed; one provider write succeeded |
+
+The audit immediately afterward found two consumed confirmation records and one
+unconsumed record from the pre-provider failure. The latter is left to normal
+TTL deletion. No raw confirmation, provider credential, destination identifier,
+account identifier or provider response was recorded as evidence.
+
+Verified closing state:
+
+- CloudFormation stack: `UPDATE_COMPLETE`;
+- API default endpoint disabled: `true` throughout;
+- MCP Lambda reserved concurrency: `0` after validation;
+- temporary request alarm count: `0`;
+- automatic-close schedule count: `0`.

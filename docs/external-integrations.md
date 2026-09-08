@@ -2,11 +2,14 @@
 
 ## State
 
-The implementation and conditional infrastructure are prepared and tested
-offline. They are not enabled in AWS, no provider credential exists in the
-project, and no external message or card has been created by this milestone.
+The implementation and conditional infrastructure are deployed in DEV while
+the public endpoint and Lambda execution remain closed. Provider configuration
+is stored in one Standard SecureString; no provider credential exists in the
+repository, deployment parameters, outputs or logs. One harmless Telegram
+message and one disposable Trello card completed the closed-API DEV validation.
 
-`EnableExternalIntegrations=false` is the deployment default. Enabling it adds:
+`EnableExternalIntegrations=false` remains the template default. The explicitly
+approved DEV deployment currently enables:
 
 - one DynamoDB on-demand confirmation table with 1 RRU/s and 1 WRU/s maximums;
 - exact `PutItem`, `UpdateItem` and `GetItem` access to that table;
@@ -15,6 +18,19 @@ project, and no external message or card has been created by this milestone.
 
 The HTTP API, Lambda concurrency, five-minute window and shutdown controls do
 not change.
+
+## Provider credential posture
+
+The Telegram bot accepts only the configured private `owner` destination and
+group joining is disabled at the provider. The runtime never accepts a raw chat
+identifier from callers.
+
+Trello's delegated token cannot be restricted by the provider to one board or
+list. The operational token is therefore long-lived for unattended service, but
+the runtime maps callers only to the fixed `portfolio/inbox` alias and its exact
+list identifier. The token has no account-management scope. A suspected
+disclosure requires immediate provider revocation and replacement of the
+SecureString value; changing only the application allowlist is not sufficient.
 
 ## Confirmation lifecycle
 
@@ -31,8 +47,8 @@ This ordering prefers a missed write over a duplicate message or card.
 
 ## SecureString contract
 
-The exact parameter is a Standard `SecureString`, no larger than 4 KiB, under
-`/aws-remote-mcp/dev/`. Its JSON shape is:
+The exact parameter is a Standard `SecureString`, no larger than 4 KiB, at
+`/portfolio/aws-remote-mcp/dev/integrations`. Its JSON shape is:
 
 ```json
 {
@@ -63,20 +79,20 @@ must inspect metadata only.
 
 ## Next gated operations
 
-Provider setup and AWS activation are deliberately separate:
+Provider setup and AWS activation remain operationally separate:
 
-1. Create or select a Telegram bot and exact destination.
-2. Create a Trello token limited to the shortest practical expiry and required
-   write scope, then identify one exact list.
-3. Create the Standard SecureString and verify only its type, tier, name and ARN.
-4. Deploy with `EnableExternalIntegrations=true` while the endpoint and Lambda
-   remain closed, then audit the table limits and exact IAM resources.
-5. Open one bounded DEV window and separately confirm one harmless Telegram
-   message and one disposable Trello card.
+1. Completed: create the Telegram bot and exact private destination.
+2. Completed: authorize Trello and resolve one exact `MCP Inbox` list.
+3. Completed: create the Standard SecureString and verify metadata only.
+4. Completed: deploy with `EnableExternalIntegrations=true` while closed and
+   audit table limits, encryption, TTL, IAM and shutdown invariants.
+5. Completed: validate one harmless Telegram message and one disposable Trello
+   card by direct Lambda invocation while API Gateway remained disabled.
+6. Completed: restore Lambda concurrency to zero and independently verify no
+   alarm or automatic-close schedule remained.
 6. Close and independently verify every shutdown invariant.
 
-Steps 1-4 change external or AWS state and require an impact review. Step 5
-creates visible external content and requires a new explicit confirmation.
+Any additional visible external content requires a new explicit confirmation.
 
 ## Primary references
 

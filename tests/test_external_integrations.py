@@ -176,7 +176,7 @@ def test_ssm_config_is_loaded_once_and_only_when_adapter_executes() -> None:
         return ssm
 
     config = SsmIntegrationConfigProvider(
-        parameter_name="/aws-remote-mcp/dev/integrations",
+        parameter_name="/portfolio/aws-remote-mcp/dev/integrations",
         region="eu-west-1",
         client_factory=client_factory,
     )
@@ -189,7 +189,10 @@ def test_ssm_config_is_loaded_once_and_only_when_adapter_executes() -> None:
 
     assert factory_calls == [("ssm", "eu-west-1")]
     assert ssm.calls == [
-        {"Name": "/aws-remote-mcp/dev/integrations", "WithDecryption": True}
+        {
+            "Name": "/portfolio/aws-remote-mcp/dev/integrations",
+            "WithDecryption": True,
+        }
     ]
     assert len(transport.calls) == 2
 
@@ -213,7 +216,7 @@ def test_ssm_trello_config_maps_only_configured_alias() -> None:
         )
     )
     config = SsmIntegrationConfigProvider(
-        parameter_name="/aws-remote-mcp/dev/integrations",
+        parameter_name="/portfolio/aws-remote-mcp/dev/integrations",
         region="eu-west-1",
         client_factory=lambda _service, _region: ssm,
     )

@@ -14,7 +14,12 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     cleanup = script.index("finally {", script.index("$validation ="))
 
     assert schedule < enable < invoke < cleanup
-    assert script.count("Invoke-DirectMcp") == 4
+    assert script.count("Invoke-DirectMcp") == 8
+    assert "if ($ValidateExternalWrites)" in script
+    assert script.count('name = "preparar_mensaje_telegram"') == 1
+    assert script.count('name = "enviar_mensaje_telegram"') == 1
+    assert script.count('name = "preparar_tarjeta_trello"') == 1
+    assert script.count('name = "crear_tarjeta_trello"') == 1
     assert "--no-disable-execute-api-endpoint" not in script
     assert "Direct validation requires the API endpoint to remain disabled." in script
     assert "--reserved-concurrent-executions 0" in script[cleanup:]

@@ -145,6 +145,10 @@ def test_dynamodb_confirmation_survives_guard_recreation(
     stored = next(iter(client.items.values()))
     assert stored["consumed"] == {"BOOL": True}
     assert prepared.token not in str(stored)
+    update_request = client.calls[1][1]
+    assert "#consumed" in update_request["UpdateExpression"]
+    assert "#consumed" in update_request["ConditionExpression"]
+    assert update_request["ExpressionAttributeNames"]["#consumed"] == "consumed"
 
 
 def test_dynamodb_confirmation_replay_is_rejected_atomically(

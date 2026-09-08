@@ -275,3 +275,39 @@ Each provider adapter makes one HTTPS POST, has a four-second timeout and never
 retries. An ambiguous timeout consumes the confirmation and requires a new user
 preview and confirmation. Provider credentials and destination identifiers are
 kept behind stable aliases and no raw response or exception crosses the adapter.
+
+## D-026 - Valid SSM namespace and DPAPI credential handoff
+
+AWS reserves parameter names whose first path segment begins with `aws` or `ssm`.
+Use `/portfolio/aws-remote-mcp/<environment>/...` for project parameters instead
+of `/aws-remote-mcp/...`, and enforce the same namespace in SAM constraints,
+runtime validation, tests and operational scripts.
+
+When a human must hand credentials to local automation, capture them with hidden
+PowerShell prompts and protect the handoff using Windows DPAPI for the current
+user. Store it outside the repository with a current-user-only ACL. Preserve the
+encrypted handoff across validation failures to avoid repeated secret entry, but
+overwrite and delete it immediately after AWS confirms SecureString creation.
+Never print, log or commit the plaintext or encrypted payload.
+
+## D-027 - Escape DynamoDB attribute names in production expressions
+
+DynamoDB expression keywords can reject an otherwise valid conditional update
+at runtime even when local fakes pass. Treat every application-owned attribute
+used in an update or condition as potentially reserved and map it through
+`ExpressionAttributeNames`. The first live confirmation correctly failed before
+the provider boundary because `consumed` was unescaped; the record stayed
+unconsumed and no Telegram request was attempted. The corrected expression uses
+`#consumed` for both update and condition, with a regression assertion on the
+generated request.
+
+## D-028 - Long-lived Trello credential behind a fixed runtime destination
+
+Use a long-lived Trello user token for unattended DEV integration instead of a
+monthly manual rotation that silently disables the portfolio service. Trello
+does not offer token restriction to one board or list, so compensate by omitting
+account-management scope, keeping the token only in the Standard SecureString,
+granting Lambda access to that exact parameter and mapping the MCP tool solely to
+the fixed `portfolio/inbox` list identifier. Never accept a provider destination
+or credential from tool arguments. Revoke and replace the token immediately if
+disclosure is suspected.
