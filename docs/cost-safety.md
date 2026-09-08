@@ -1,6 +1,6 @@
 # Cost safety model
 
-Checked 2026-08-28 for the account and `eu-west-1`.
+Checked 2026-09-08 for the account and `eu-west-1`.
 
 ## Account control
 
@@ -31,7 +31,7 @@ Opening a window requires all of these checks in order:
 
 1. A one-time AWS-side shutdown is created in a dedicated schedule group and
    auto-deletes afterward.
-2. A temporary alarm is armed at 20 API requests in one minute.
+2. A temporary alarm is armed at 15 API requests in one minute.
 3. Lambda is enabled. Reserved concurrency one is preferred; the reviewed
    Inspector fallback permits only the regional account cap of exactly 10 when
    AWS's reduced-account quota cannot allocate a reservation.
@@ -50,13 +50,31 @@ received by hosted APIs; no separate per-request price is documented for these
 two management reads. The enclosing API Gateway request and Lambda execution
 remain part of the existing bounded-window estimate.
 
-At 128 MB, the preferred single-concurrency mode consumes at most 37.5 GB-seconds
-over five continuously busy minutes. Under the account-cap-10 fallback, the
-conservative all-slots-busy envelope is 375 GB-seconds, approximately $0.00625
-at the published first-tier example rate, before any free tier. At the configured
-API target, five minutes is roughly 300 requests ($0.0003 at $1/million), while
-the alarm should close substantially earlier. These are estimates, not billing
-guarantees.
+## Cost envelopes
+
+The deployed controls produce three materially different envelopes:
+
+| State | Bounded AWS activity | Conservative incremental cost |
+| --- | --- | --- |
+| Closed (normal state) | API rejects execution and Lambda concurrency is zero | No request or compute cost; only negligible retained log/table storage and the Cognito active-user charge described below |
+| Expected validation | A small, manually selected set of authenticated calls before immediate closure | A fraction of one cent, normally covered by service free tiers |
+| Five-minute deadline | At most about 300 requests at the stage target of one request per second | About $0.0068 before free tiers if every invocation consumes the full ten-second Lambda timeout |
+
+The deadline calculation deliberately assumes the least favourable execution
+duration: 300 invocations x 10 seconds x 0.125 GB = 375 GB-seconds. At AWS's
+published first-tier Lambda example rate this is about $0.00625, plus about
+$0.00006 for Lambda requests and roughly $0.0003 for HTTP API calls at the
+representative $1-per-million tier. The temporary 15-request alarm is intended
+to close the window far earlier, but it is not used to make the five-minute
+bound look smaller. Free-tier allowances are also excluded from the estimate.
+
+The stage rate and burst targets are throttling controls, not contractual hard
+quotas: AWS documents that throttling is best effort. The independent five-minute
+shutdown and Lambda's ten-second timeout therefore remain the stronger time and
+per-execution limits. Likewise, the DynamoDB one-read/one-write maximums are
+cost-control targets and may briefly admit burst capacity. Even if each of the
+roughly 300 admitted calls used one read and one write, that request volume is
+far below one cent at public per-million request pricing.
 
 The optional external-integration profile is off by default. When enabled it
 uses one DynamoDB on-demand table for confirmation state, with table maximums of
@@ -73,6 +91,16 @@ request charge. Secrets Manager and customer-managed KMS keys are intentionally
 excluded because they add recurring charges. Each confirmed execution performs
 at most one Parameter Store read, one DynamoDB conditional write and one provider
 POST; failed confirmation checks may add one strongly consistent DynamoDB read.
+
+Cognito Plus has no fixed project minimum. With the single administrator being
+the only monthly active user, its known recurring application charge is $0.02
+for a month in which that user is active. Repeated requests from the same user do
+not create additional monthly active users.
+
+CloudWatch application logs expire after seven days. The alarm and Scheduler
+deadline exist only during an opening window and are removed by closure. The SNS
+topic, Lambda functions, API definition, IAM roles and Scheduler group do not
+generate request/compute charges while idle.
 
 ## Controls intentionally not used
 

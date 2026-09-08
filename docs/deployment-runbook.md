@@ -94,7 +94,7 @@ the whole API endpoint is enabled.
 ```
 
 The maximum window is five minutes. The alarm invokes the safety shutdown after
-20 requests in one minute. The generic opener prefers reserved concurrency one.
+15 requests in one minute. The generic opener prefers reserved concurrency one.
 The Inspector wrapper uses the reviewed unreserved fallback because this
 reduced-quota account cannot allocate a reservation; it refuses to proceed
 unless both Service Quotas and Lambda account settings report a regional cap and
