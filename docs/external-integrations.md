@@ -19,6 +19,19 @@ approved DEV deployment currently enables:
 The HTTP API, Lambda concurrency, five-minute window and shutdown controls do
 not change.
 
+## Provider credential posture
+
+The Telegram bot accepts only the configured private `owner` destination and
+group joining is disabled at the provider. The runtime never accepts a raw chat
+identifier from callers.
+
+Trello's delegated token cannot be restricted by the provider to one board or
+list. The operational token is therefore long-lived for unattended service, but
+the runtime maps callers only to the fixed `portfolio/inbox` alias and its exact
+list identifier. The token has no account-management scope. A suspected
+disclosure requires immediate provider revocation and replacement of the
+SecureString value; changing only the application allowlist is not sufficient.
+
 ## Confirmation lifecycle
 
 1. A prepare tool validates an allowlisted alias and bounded content.

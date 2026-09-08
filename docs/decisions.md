@@ -300,3 +300,14 @@ the provider boundary because `consumed` was unescaped; the record stayed
 unconsumed and no Telegram request was attempted. The corrected expression uses
 `#consumed` for both update and condition, with a regression assertion on the
 generated request.
+
+## D-028 - Long-lived Trello credential behind a fixed runtime destination
+
+Use a long-lived Trello user token for unattended DEV integration instead of a
+monthly manual rotation that silently disables the portfolio service. Trello
+does not offer token restriction to one board or list, so compensate by omitting
+account-management scope, keeping the token only in the Standard SecureString,
+granting Lambda access to that exact parameter and mapping the MCP tool solely to
+the fixed `portfolio/inbox` list identifier. Never accept a provider destination
+or credential from tool arguments. Revoke and replace the token immediately if
+disclosure is suspected.
