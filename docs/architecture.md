@@ -23,6 +23,11 @@ feature branch -> pull request -> develop -> DEV
 develop -> promotion pull request -> main -> PROD
 ```
 
+DEV and PROD use separate application and Cognito stacks. No Cognito user,
+SecureString, confirmation record or provider destination is promoted between
+them. PROD begins with external integrations disabled and both its endpoint and
+compute independently closed.
+
 CI has no live integrations. CD is deferred until manual DEV and PROD releases
 are stable and its deployment identity and rollback have been reviewed.
 

@@ -142,8 +142,11 @@ def test_repeated_events_use_fresh_sdk_lifespan(
         assert names == {"diagnostico", "listar_inventario_aws"}
 
 
-def test_dev_diagnostic_identifies_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+@pytest.mark.parametrize("environment", ["dev", "prod"])
+def test_diagnostic_identifies_isolated_environment(
+    monkeypatch: pytest.MonkeyPatch, environment: str
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", environment)
     monkeypatch.setenv("AWS_REGION", "eu-west-1")
     event = http_api_event(
         "tools/call",
@@ -155,7 +158,7 @@ def test_dev_diagnostic_identifies_environment(monkeypatch: pytest.MonkeyPatch) 
     content = response_body(response)["result"]["structuredContent"]
 
     assert response["statusCode"] == 200
-    assert content["environment"] == "dev"
+    assert content["environment"] == environment
     assert content["external_side_effects"] is False
 
 
@@ -224,7 +227,7 @@ def test_lambda_inventory_uses_injected_bounded_adapter(
     assert fake.calls == [("aws.inventory.list", {})]
 
 
-@pytest.mark.parametrize("environment", ["", "prod", "staging"])
+@pytest.mark.parametrize("environment", ["", "staging"])
 def test_lambda_environment_fails_safe(
     monkeypatch: pytest.MonkeyPatch, environment: str
 ) -> None:

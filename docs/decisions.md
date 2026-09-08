@@ -325,3 +325,16 @@ Audit emission is best effort and must not replace a completed tool result. In
 particular, a logging failure after a provider write cannot create an ambiguous
 client error that encourages a duplicate retry. DynamoDB confirmation state is
 the authoritative single-use control; logs are evidence, not a transaction.
+
+## D-030 - Empty, isolated and closed initial PROD
+
+Promote the reviewed source through `main`, then create separate PROD application
+and Cognito stacks. Do not clone the DEV user, provider SecureString,
+confirmation table or external destinations. PROD begins with integrations off,
+zero Cognito users, API Gateway disabled and Lambda reserved concurrency zero.
+
+The initial API identifier and Cognito resource URI form a deployment dependency
+cycle. Resolve it with a closed bootstrap application stack, create the bound
+PROD authorization stack, then immediately replace the bootstrap issuer and
+audience with the PROD values. Because both execution gates are fixed closed in
+the template, the intermediate configuration cannot process requests.

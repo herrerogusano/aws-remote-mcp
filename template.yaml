@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
-Description: Safe DEV-only AWS Remote MCP skeleton.
+Description: Safe closed-by-default AWS Remote MCP environment.
 
 Parameters:
   Environment:
@@ -8,6 +8,7 @@ Parameters:
     Default: dev
     AllowedValues:
       - dev
+      - prod
   CognitoIssuer:
     Type: String
     Description: Exact issuer URL of the dedicated Cognito user pool.
@@ -30,7 +31,7 @@ Parameters:
   IntegrationConfigParameterName:
     Type: String
     Default: /portfolio/aws-remote-mcp/dev/integrations
-    AllowedPattern: "^/portfolio/aws-remote-mcp/dev/[a-z0-9-]+$"
+    AllowedPattern: "^/portfolio/aws-remote-mcp/(dev|prod)/[a-z0-9-]+$"
     Description: Exact Standard SecureString parameter containing integration config.
 
 Conditions:
@@ -320,7 +321,7 @@ Resources:
               Service: lambda.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: close-only-this-dev-endpoint
+        - PolicyName: close-only-this-environment-endpoint
           PolicyDocument:
             Version: "2012-10-17"
             Statement:

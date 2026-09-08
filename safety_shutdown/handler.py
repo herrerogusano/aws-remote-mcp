@@ -1,4 +1,4 @@
-"""Idempotently close the temporary DEV endpoint and remove its traffic alarm."""
+"""Idempotently close one temporary endpoint and remove its traffic alarm."""
 
 from __future__ import annotations
 
@@ -38,6 +38,7 @@ def close_test_window(
     api_id: str,
     function_name: str,
     alarm_name: str,
+    environment: str = "dev",
 ) -> None:
     """Attempt every fail-closed action even if an earlier action fails."""
 
@@ -67,7 +68,7 @@ def close_test_window(
     print(
         json.dumps(
             {
-                "event": "dev_test_window_closed",
+                "event": f"{environment}_test_window_closed",
                 "apiDisabled": "disable_api" not in failures,
                 "lambdaStopped": "stop_lambda" not in failures,
                 "alarmDeleted": "delete_traffic_alarm" not in failures,
@@ -92,5 +93,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, bool]:
         api_id=required_environment("TARGET_API_ID"),
         function_name=required_environment("TARGET_FUNCTION_NAME"),
         alarm_name=required_environment("TRAFFIC_ALARM_NAME"),
+        environment=required_environment("APP_ENVIRONMENT"),
     )
     return {"closed": True}

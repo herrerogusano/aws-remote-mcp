@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Gated Cognito OAuth foundation for the AWS Remote MCP DEV environment.
+  Gated Cognito OAuth foundation for an AWS Remote MCP environment.
 
 Parameters:
   Environment:
@@ -8,6 +8,7 @@ Parameters:
     Default: dev
     AllowedValues:
       - dev
+      - prod
   CognitoDomainPrefix:
     Type: String
     Description: Globally unique lowercase prefix for the Cognito-hosted domain.

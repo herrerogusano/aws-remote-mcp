@@ -139,9 +139,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Create one stateless ASGI app per event and preserve SDK lifespan rules."""
 
     environment = _required_environment("APP_ENVIRONMENT")
-    if environment != "dev":
+    if environment not in {"dev", "prod"}:
         raise RuntimeError(
-            "This Lambda deployment is restricted to APP_ENVIRONMENT=dev."
+            "APP_ENVIRONMENT must identify the isolated dev or prod deployment."
         )
     allowed_host = _api_gateway_host(event)
     authorization = AuthorizationConfig(
