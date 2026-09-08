@@ -10,6 +10,13 @@ and verified in `eu-west-1` on 2026-08-28. A bounded remote validation through
 MCP Inspector completed successfully on 2026-09-02, after which every temporary
 AWS and local OAuth control returned to its closed state.
 
+The final merged `develop` revision was deployed on 2026-09-09. Its structured
+tool audit records and hardened provider-failure behavior are active in closed
+DEV. A final direct validation passed tool discovery, diagnostics and bounded
+AWS inventory without calling Telegram or Trello. CloudWatch contained the two
+expected exact-schema audit records, and the subsequent shutdown audit confirmed
+API disablement, Lambda concurrency zero, no alarm and no schedule.
+
 The next application increment is deployed closed: a fixed, bounded AWS
 inventory adapter for Lambda and API Gateway v2, its least-privilege IAM policy,
 fault tests and validation scripts. The closed deployment completed on
@@ -102,7 +109,7 @@ Cognito Plus costs $0.02 per direct active user with no minimum fee.
 Administrator-only creation and the one-user project policy bound the current
 tier charge to $0.02 per active month.
 
-## Next decision
+## Completion state
 
 On 2026-09-07, real inventory validation stopped after successful OAuth because
 Inspector 2.4.0 attempted to restart an already-started Streamable HTTP transport.
@@ -130,6 +137,8 @@ Lambda concurrency zero, no automatic-close schedule and no traffic alarm. Two
 confirmation records are consumed; one record from a pre-provider validation
 failure remains unconsumed until normal TTL deletion.
 
-The next engineering step is review and merge of the secure provisioning and
-external-validation branch. Any additional provider write or remotely open DEV
-window remains a separate operational gate.
+The secure integration and structured-audit changes have been reviewed, passed
+CI and merged into `develop`. The portfolio-ready DEV implementation is
+complete and deployed closed. Additional provider writes, a remotely open DEV
+window, PROD infrastructure and automated delivery are optional future changes,
+not completion requirements; each remains a separate operational decision.

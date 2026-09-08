@@ -44,12 +44,19 @@ MCP client
   zero-fixed-cost Parameter Store credential design.
 - Closed-API DEV validation of one confirmed Telegram message and one confirmed
   Trello card, followed by independent shutdown verification.
+- Sanitized structured audit records with exact-schema regression coverage,
+  deployed and verified in CloudWatch without additional provider writes.
+- Complete Telegram and Trello transport-failure matrix and conservative final
+  validation-window cost review.
 
 ## Next milestones
 
-1. Complete structured audit logging, provider fault tests and final cost review.
-2. Prove manual DEV/PROD promotion, then add GitHub OIDC delivery.
-3. Publish architecture, threat model, demo and operating runbooks.
+The portfolio-ready DEV implementation is complete. Optional future expansion:
+
+1. Add an isolated PROD environment if a persistent public demonstration is
+   required.
+2. Prove manual DEV/PROD promotion, then consider GitHub OIDC delivery.
+3. Add a recorded demonstration while retaining the closed-by-default posture.
 
 ## Success criteria
 

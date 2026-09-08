@@ -46,6 +46,33 @@ Small CloudWatch log ingestion and storage are separate.
 - temporary request alarm count: `0`;
 - automatic-close schedule count: `0`.
 
+## Final structured-audit validation
+
+Date: 2026-09-09
+Region: `eu-west-1`
+
+The merged `develop` revision was deployed to the existing DEV stack with the
+external-integration profile preserved. CloudFormation completed with
+`UPDATE_COMPLETE` and no resource replacement. A direct validation then made
+only three bounded Lambda invocations while API Gateway remained disabled:
+
+| Operation | Result |
+| --- | --- |
+| `tools/list` | Exact six-tool integration profile |
+| `diagnostico` | `ok`, DEV, no external side effects |
+| `listar_inventario_aws` | Two reads, at most 20 resources, zero writes |
+
+The external execute tools were not called, so this validation sent no Telegram
+message and created no Trello card. CloudWatch contained one
+`mcp_tool_result` record for each called tool. Both records used schema version
+one and contained exactly the allowlisted context, status, issue-code and counter
+fields; no arguments, result data, confirmation material or provider identifiers
+were present.
+
+The post-validation audit confirmed API disablement, Lambda reserved concurrency
+zero, no active alarm and no active shutdown schedule. The confirmation table
+remained active with encryption, TTL and one-read/one-write on-demand maximums.
+
 This evidence validates the deployed Lambda/MCP boundary. It deliberately does
 not claim that the API Gateway IAM data path has been validated.
 

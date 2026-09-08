@@ -88,8 +88,13 @@ See `docs/aws-inventory.md`.
 - No live AWS, Telegram, Trello, OAuth, or paid-service calls in normal CI.
 - No secrets or persistent credentials in source control.
 - No AWS deployment without explicit infrastructure approval.
-- Future tool calls must use structured audit logging and bounded traffic.
+- Remote tool calls emit sanitized structured audit records and use bounded
+  traffic.
 
 See `ROADMAP.md` and `docs/project-status.md` for the roadmap and current state.
 The prepared DEV procedure is in `docs/deployment-runbook.md`; explicit approval
 is mandatory before executing it.
+
+For a portfolio review, start with `docs/demo.md`, `docs/architecture.md` and
+`docs/threat-model.md`. They present the verified system without requiring the
+closed AWS endpoint to be opened.
