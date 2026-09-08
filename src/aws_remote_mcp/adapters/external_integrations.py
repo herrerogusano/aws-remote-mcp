@@ -138,10 +138,15 @@ class TelegramHttpAdapter:
             raise AdapterError("telegram_rejected", "Telegram rejected the request.")
         result = response.get("result")
         message_id = result.get("message_id") if isinstance(result, dict) else None
+        if not isinstance(message_id, int) or isinstance(message_id, bool):
+            raise AdapterError(
+                "telegram_invalid_response",
+                "Telegram returned an invalid response.",
+            )
         return {
             "accepted": True,
             "provider": "telegram",
-            "message_id": str(message_id)[:64] if message_id is not None else "unknown",
+            "message_id": str(message_id)[:64],
         }
 
 
@@ -199,10 +204,15 @@ class TrelloHttpAdapter:
         )
         response = _execute_once(request, provider="trello", transport=self._transport)
         card_id = response.get("id")
+        if not isinstance(card_id, str) or not card_id or len(card_id) > 64:
+            raise AdapterError(
+                "trello_invalid_response",
+                "Trello returned an invalid response.",
+            )
         return {
             "accepted": True,
             "provider": "trello",
-            "card_id": str(card_id)[:64] if card_id is not None else "unknown",
+            "card_id": card_id,
         }
 
 

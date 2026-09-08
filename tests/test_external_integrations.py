@@ -2,6 +2,7 @@
 
 import json
 from typing import Any
+from urllib.error import URLError
 from urllib.parse import parse_qs
 from urllib.request import Request
 
@@ -31,6 +32,16 @@ class RecordingTransport:
     def __call__(self, request: Request, timeout: float) -> tuple[int, bytes]:
         self.calls.append((request, timeout))
         return self.status, self.response
+
+
+class RaisingTransport:
+    def __init__(self, error: Exception) -> None:
+        self.error = error
+        self.calls = 0
+
+    def __call__(self, _request: Request, _timeout: float) -> tuple[int, bytes]:
+        self.calls += 1
+        raise self.error
 
 
 class FakeSsmClient:
@@ -156,6 +167,71 @@ def test_provider_failures_are_sanitized(
 
     assert captured.value.code == expected_code
     assert "untrusted" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("transport", "expected_code"),
+    [
+        (RaisingTransport(TimeoutError("secret timeout")), "telegram_outcome_unknown"),
+        (RaisingTransport(URLError("secret network")), "telegram_outcome_unknown"),
+        (RaisingTransport(RuntimeError("secret bug")), "telegram_unavailable"),
+        (RecordingTransport(200, b"not-json"), "telegram_invalid_response"),
+        (
+            RecordingTransport(200, b"{" + b" " * (16 * 1024) + b"}"),
+            "telegram_response_too_large",
+        ),
+        (
+            RecordingTransport(200, b'{"ok":true,"result":{}}'),
+            "telegram_invalid_response",
+        ),
+    ],
+)
+def test_telegram_faults_are_bounded_and_single_attempt(
+    transport: Any, expected_code: str
+) -> None:
+    adapter = TelegramHttpAdapter(
+        bot_token=TELEGRAM_TOKEN,
+        destinations={"alerts": "-100123"},
+        transport=transport,
+    )
+
+    with pytest.raises(AdapterError) as captured:
+        adapter.send_message("alerts", "hello")
+
+    assert captured.value.code == expected_code
+    assert captured.value.retryable is False
+    call_count = (
+        transport.calls if isinstance(transport.calls, int) else len(transport.calls)
+    )
+    assert call_count == 1
+    assert "secret" not in str(captured.value)
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_code"),
+    [
+        (b"[]", "trello_invalid_response"),
+        (b'{"name":"missing id"}', "trello_invalid_response"),
+        (b'{"id":""}', "trello_invalid_response"),
+        (b'{"id":"' + b"a" * 65 + b'"}', "trello_invalid_response"),
+    ],
+)
+def test_trello_rejects_ambiguous_success_response(
+    response: bytes, expected_code: str
+) -> None:
+    transport = RecordingTransport(200, response)
+    adapter = TrelloHttpAdapter(
+        api_key=TRELLO_KEY,
+        api_token=TRELLO_TOKEN,
+        destinations={("portfolio", "inbox"): "list-123"},
+        transport=transport,
+    )
+
+    with pytest.raises(AdapterError) as captured:
+        adapter.create_card("portfolio", "inbox", "Title", "Description")
+
+    assert captured.value.code == expected_code
+    assert len(transport.calls) == 1
 
 
 def test_ssm_config_is_loaded_once_and_only_when_adapter_executes() -> None:
