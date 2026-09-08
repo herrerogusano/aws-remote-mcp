@@ -11,8 +11,9 @@ MCP client
   -> AWS APIs / Telegram / Trello
 ```
 
-The DEV runtime exists in `eu-west-1` and remains disabled outside bounded test
-windows. Lambda and API Gateway remain the target unless current MCP protocol
+The DEV and PROD runtimes exist independently in `eu-west-1`. DEV remains
+disabled outside bounded tests, and PROD has never been opened. Lambda and API
+Gateway remain the target unless current MCP protocol
 behavior proves them incompatible; changing compute requires a documented
 architecture review.
 

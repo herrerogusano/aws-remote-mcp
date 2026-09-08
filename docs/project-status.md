@@ -86,7 +86,8 @@ removed afterward.
 - Direct validation evidence: one cold invocation at 1,022 ms plus 2,150 ms
   initialization, two warm invocations at 133 ms and 89 ms, and 108 MB maximum
   memory used out of 128 MB.
-- PROD and continuous deployment do not exist.
+- Isolated PROD application and Cognito stacks are deployed closed with zero
+  users and external integrations disabled. Continuous deployment does not exist.
 - The separate Cognito auth stack has five deployed resources, deletion
   protection, enforced threat protection, administrator-only user creation and
   exactly one validation identity.
@@ -139,6 +140,7 @@ failure remains unconsumed until normal TTL deletion.
 
 The secure integration and structured-audit changes have been reviewed, passed
 CI and merged into `develop`. The portfolio-ready DEV implementation is
-complete and deployed closed. Additional provider writes, a remotely open DEV
-window, PROD infrastructure and automated delivery are optional future changes,
+complete and deployed closed. The reviewed implementation is promoted to `main`
+and an isolated, empty PROD is also deployed closed. Additional provider writes,
+a remotely open environment and automated delivery are optional future changes,
 not completion requirements; each remains a separate operational decision.
