@@ -5,17 +5,21 @@ Region: `eu-west-1`
 ## Multi-client increment
 
 On 2026-09-09 the target was clarified as a public portfolio MCP that users can
-connect from multiple AI clients. A provider-neutral OAuth increment is prepared
-on `feat/multi-client-oauth`: WorkOS AuthKit is selected for CIMD/DCR onboarding,
-the AWS template accepts independent OAuth issuer and authorization-server
-inputs, and Lambda no longer assumes Cognito's private `token_use` claim. Exact
-issuer, audience, subject and scope checks remain in place. A read-only metadata
+connect from multiple AI clients. The provider-neutral OAuth increment merged
+through PR #39. WorkOS AuthKit is selected for CIMD/DCR onboarding, the AWS
+template accepts independent OAuth issuer and authorization-server inputs, and
+Lambda no longer assumes Cognito's private `token_use` claim. Exact issuer,
+audience, subject and scope checks remain in place. A read-only metadata
 validator and bounded external-OAuth opening profile are included.
 
-No WorkOS account, WorkOS production environment, AWS deployment or endpoint
-opening has occurred for this increment. The next gate is the manual free WorkOS
-staging setup in `docs/workos-auth-runbook.md`; DEV and PROD retain their prior
-closed deployed state.
+The free WorkOS staging environment was configured with self-service signup,
+CIMD, DCR and the exact DEV resource indicator. Its public OAuth and OIDC
+metadata passed the local capability preflight. The profile was then deployed to
+DEV through a reviewed non-replacing CloudFormation change set. The deployment
+completed `UPDATE_COMPLETE`; subsequent reads confirmed the API disabled,
+Lambda concurrency zero, WorkOS issuer, exact resource audience, `openid` scope,
+and zero alarms or schedules. No OAuth login or MCP call has occurred yet. PROD
+remains unchanged and closed. The next gate is one bounded live client test.
 
 ## Current state
 

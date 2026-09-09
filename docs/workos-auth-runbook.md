@@ -75,12 +75,14 @@ a client or send a credential.
 Build and deploy only after the WorkOS staging preflight passes:
 
 ```powershell
+$buildDir = ".aws-sam/build-workos-$([guid]::NewGuid().ToString('N'))"
+
 sam build --template-file template.yaml `
-  --build-dir .aws-sam/build-current `
+  --build-dir $buildDir `
   --beta-features
 
 sam deploy `
-  --template-file .aws-sam/build-current/template.yaml `
+  --template-file "$buildDir/template.yaml" `
   --stack-name aws-remote-mcp-dev `
   --region eu-west-1 `
   --resolve-s3 `
@@ -138,3 +140,24 @@ Primary references:
 - https://workos.com/docs/authkit/environments
 - https://workos.com/pricing
 - https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization
+
+## DEV deployment evidence
+
+The WorkOS staging profile was deployed to closed DEV on 2026-09-09. Public
+provider metadata advertised authorization code, refresh tokens, S256 PKCE,
+public clients, `openid`, JWKS and DCR. The CloudFormation change set modified no
+resource through replacement and added or removed no resource.
+
+Post-deployment control-plane reads confirmed:
+
+- CloudFormation `UPDATE_COMPLETE`;
+- API endpoint disabled;
+- MCP Lambda reserved concurrency zero;
+- JWT route scope exactly `openid`;
+- issuer and authorization server exactly
+  `https://possible-movie-92-staging.authkit.app`;
+- audience exactly the DEV MCP endpoint;
+- zero request alarms and zero automatic-close schedules.
+
+No OAuth login, MCP request or external provider write occurred during the
+closed deployment. Live client compatibility remains unverified.
