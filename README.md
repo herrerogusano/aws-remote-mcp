@@ -63,7 +63,7 @@ credentials. Infrastructure changes require the review described in
 `docs/operational-approvals.md`.
 
 The prepared DEV stack is closed by default: its execute-api endpoint is disabled,
-the MCP route requires a scoped, audience-bound Cognito JWT, and MCP Lambda
+the MCP route requires a scoped, audience-bound OAuth JWT, and MCP Lambda
 concurrency is zero. A separately approved test window is limited to five minutes
 with an independent scheduled shutdown and request-volume tripwire. See
 `docs/cost-safety.md`.
@@ -73,10 +73,11 @@ confirmed Trello card, has also been validated directly while the API remained
 disabled. See `docs/direct-validation-evidence.md` and
 `docs/external-integrations.md`.
 
-The selected OAuth/OIDC profile and its deployed single-user Cognito foundation
-are documented in `docs/oauth-provider-evaluation.md` and
-`docs/auth-deployment-runbook.md`. TOTP and JWT route integration are complete;
-any remote opening remains a separate gated action.
+The original Cognito/Inspector validation profile remains documented in
+`docs/oauth-provider-evaluation.md`. The multi-client target uses WorkOS AuthKit
+for CIMD/DCR-based onboarding without client secrets in the MCP server; see
+`docs/workos-auth-runbook.md`. Its code and infrastructure contract are prepared,
+but WorkOS staging configuration and live client validation remain separate gates.
 
 The deployed closed DEV inventory implementation permits only one non-paginated
 `ListFunctions` request and one non-paginated API Gateway v2 `GetApis` request,

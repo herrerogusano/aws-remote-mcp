@@ -45,13 +45,14 @@ $functionConfig = Invoke-AwsCli @(
     "--region", $Region,
     "--output", "json"
 ) | ConvertFrom-Json
-$issuer = $functionConfig.Environment.Variables.COGNITO_ISSUER
+$issuer = $functionConfig.Environment.Variables.OAUTH_ISSUER
 $audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
-$requiredScope = "$audience/use"
+$requiredScope = $functionConfig.Environment.Variables.MCP_REQUIRED_SCOPE
 $externalIntegrationsEnabled = `
     $functionConfig.Environment.Variables.EXTERNAL_INTEGRATIONS_ENABLED -eq "true"
 if (
     [string]::IsNullOrWhiteSpace($issuer) -or
+    [string]::IsNullOrWhiteSpace($requiredScope) -or
     $audience -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp"
 ) {
     throw "Deployed Lambda authorization configuration is missing or unexpected."

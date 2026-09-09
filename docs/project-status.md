@@ -2,6 +2,21 @@
 
 Region: `eu-west-1`
 
+## Multi-client increment
+
+On 2026-09-09 the target was clarified as a public portfolio MCP that users can
+connect from multiple AI clients. A provider-neutral OAuth increment is prepared
+on `feat/multi-client-oauth`: WorkOS AuthKit is selected for CIMD/DCR onboarding,
+the AWS template accepts independent OAuth issuer and authorization-server
+inputs, and Lambda no longer assumes Cognito's private `token_use` claim. Exact
+issuer, audience, subject and scope checks remain in place. A read-only metadata
+validator and bounded external-OAuth opening profile are included.
+
+No WorkOS account, WorkOS production environment, AWS deployment or endpoint
+opening has occurred for this increment. The next gate is the manual free WorkOS
+staging setup in `docs/workos-auth-runbook.md`; DEV and PROD retain their prior
+closed deployed state.
+
 ## Current state
 
 The application core, local Streamable HTTP transport, authorization contract

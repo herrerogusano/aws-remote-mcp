@@ -118,15 +118,16 @@ def _gateway_caller(
         raise RuntimeError("Validated JWT claims are missing.")
     scopes = claims.get("scope", "")
     subject = claims.get("sub")
-    required_scope = authorization.required_scopes[0]
+    required_scopes = authorization.required_scopes or ()
+    token_use = claims.get("token_use")
     if (
         claims.get("iss") != authorization.issuer_url
         or claims.get("aud") != authorization.resource_server_url
-        or claims.get("token_use") != "access"
+        or (token_use is not None and token_use != "access")
         or not isinstance(subject, str)
         or not subject
         or not isinstance(scopes, str)
-        or required_scope not in scopes.split()
+        or any(required not in scopes.split() for required in required_scopes)
     ):
         raise RuntimeError("Validated JWT claims violate the MCP contract.")
     return CallerContext(
@@ -146,8 +147,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
     allowed_host = _api_gateway_host(event)
     authorization = AuthorizationConfig(
-        issuer_url=_required_environment("COGNITO_ISSUER"),
+        issuer_url=_required_environment("OAUTH_ISSUER"),
         resource_server_url=_required_environment("MCP_RESOURCE_URL"),
+        authorization_server_url=_required_environment("OAUTH_AUTHORIZATION_SERVER"),
+        required_scopes=tuple(
+            scope for scope in os.environ.get("MCP_REQUIRED_SCOPE", "").split() if scope
+        ),
     )
     request_context = event.get("requestContext")
     route_key = (

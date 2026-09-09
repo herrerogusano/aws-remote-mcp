@@ -37,14 +37,17 @@ def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     assert 'openapi: "3.0.1"' in template
     assert 'url: "/"' in template
     assert "paths: {}" in template
-    assert "CognitoJwtAuthorizer:" in template
-    assert "DefaultAuthorizer: CognitoJwtAuthorizer" in template
+    assert "OAuthJwtAuthorizer:" in template
+    assert "DefaultAuthorizer: OAuthJwtAuthorizer" in template
     assert 'IdentitySource: "$request.header.Authorization"' in template
-    assert "issuer: !Ref CognitoIssuer" in template
+    assert "issuer: !Ref OAuthIssuer" in template
     assert "- !Ref McpTokenAudience" in template
     assert "AuthorizationScopes:" in template
     assert template.count("- !Ref McpRequiredScope") == 2
     assert "McpRequiredScope:" in template
+    assert "OAuthAuthorizationServer:" in template
+    assert "OAUTH_ISSUER: !Ref OAuthIssuer" in template
+    assert "OAUTH_AUTHORIZATION_SERVER: !Ref OAuthAuthorizationServer" in template
     assert "EnableIamAuthorizer" not in template
     assert "AWS_IAM" not in template
 

@@ -33,6 +33,9 @@ middleware tests.
 
 ## Selected controlled-client profile
 
+This section records the completed first validation. The target multi-client
+profile is specified in `docs/workos-auth-runbook.md` and D-031.
+
 The selected first production-shaped profile is:
 
 ```text

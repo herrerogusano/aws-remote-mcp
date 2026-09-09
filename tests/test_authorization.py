@@ -67,12 +67,20 @@ def test_required_scope_is_derived_from_the_resource_uri() -> None:
     config = AuthorizationConfig(issuer_url=ISSUER, resource_server_url=RESOURCE)
 
     assert config.required_scopes == (f"{RESOURCE}/use",)
-    with pytest.raises(ValueError, match="bound to the MCP resource URL"):
-        AuthorizationConfig(
-            issuer_url=ISSUER,
-            resource_server_url=RESOURCE,
-            required_scopes=("different-resource/use",),
-        )
+    assert config.authorization_server_url == ISSUER
+
+
+def test_external_provider_can_use_separate_server_and_standard_scope() -> None:
+    authorization_server = "https://portfolio.authkit.app"
+    config = AuthorizationConfig(
+        issuer_url=authorization_server,
+        authorization_server_url=authorization_server,
+        resource_server_url=RESOURCE,
+        required_scopes=("openid",),
+    )
+
+    assert config.authorization_server_url == authorization_server
+    assert config.required_scopes == ("openid",)
 
 
 @pytest.fixture
@@ -177,20 +185,22 @@ def encode_jwt(
     issuer: str = ISSUER,
     audience: str = RESOURCE,
     expires_at: int | None = None,
-    token_use: str = "access",
+    token_use: str | None = "access",
     scope: str = MCP_USE_SCOPE,
 ) -> str:
+    claims: dict[str, Any] = {
+        "iss": issuer,
+        "aud": audience,
+        "sub": "user-123",
+        "client_id": "client-123",
+        "exp": expires_at or int(time.time()) + 300,
+        "iat": int(time.time()),
+        "scope": scope,
+    }
+    if token_use is not None:
+        claims["token_use"] = token_use
     return jwt.encode(
-        {
-            "iss": issuer,
-            "aud": audience,
-            "sub": "user-123",
-            "client_id": "client-123",
-            "exp": expires_at or int(time.time()) + 300,
-            "iat": int(time.time()),
-            "token_use": token_use,
-            "scope": scope,
-        },
+        claims,
         secret,
         algorithm="HS256",
     )
@@ -263,6 +273,23 @@ def test_offline_jwt_verifier_normalizes_minimal_caller() -> None:
         "sub": "user-123",
         "aud": RESOURCE,
         "token_use": "access",
+    }
+
+
+def test_offline_verifier_accepts_provider_token_without_token_use() -> None:
+    secret = "offline-test-key-with-no-production-value"
+    encoded = encode_jwt(secret, token_use=None)
+    verifier = OfflineJwtVerifier(
+        key=secret, algorithms=("HS256",), issuer=ISSUER, audience=RESOURCE
+    )
+
+    verified = asyncio.run(verifier.verify_token(encoded))
+
+    assert verified is not None
+    assert verified.claims == {
+        "iss": ISSUER,
+        "sub": "user-123",
+        "aud": RESOURCE,
     }
 
 
