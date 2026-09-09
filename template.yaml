@@ -9,18 +9,22 @@ Parameters:
     AllowedValues:
       - dev
       - prod
-  CognitoIssuer:
+  OAuthIssuer:
     Type: String
-    Description: Exact issuer URL of the dedicated Cognito user pool.
-    AllowedPattern: "^https://cognito-idp\\.eu-west-1\\.amazonaws\\.com/eu-west-1_[A-Za-z0-9]+$"
+    Description: Exact HTTPS JWT issuer advertised by the authorization server.
+    AllowedPattern: "^https://[^?#]+$"
+  OAuthAuthorizationServer:
+    Type: String
+    Description: Exact HTTPS OAuth authorization-server issuer used for MCP discovery.
+    AllowedPattern: "^https://[^?#]+$"
   McpTokenAudience:
     Type: String
     Description: Exact audience required in access tokens for this MCP endpoint.
     AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp$"
   McpRequiredScope:
     Type: String
-    Description: Exact resource-bound scope required for MCP access.
-    AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp/use$"
+    Description: Exact OAuth scope required in addition to the resource audience.
+    AllowedPattern: "^[A-Za-z0-9:/._-]+$"
   EnableExternalIntegrations:
     Type: String
     Default: "false"
@@ -152,15 +156,15 @@ Resources:
         paths: {}
       Auth:
         Authorizers:
-          CognitoJwtAuthorizer:
+          OAuthJwtAuthorizer:
             AuthorizationScopes:
               - !Ref McpRequiredScope
             IdentitySource: "$request.header.Authorization"
             JwtConfiguration:
-              issuer: !Ref CognitoIssuer
+              issuer: !Ref OAuthIssuer
               audience:
                 - !Ref McpTokenAudience
-        DefaultAuthorizer: CognitoJwtAuthorizer
+        DefaultAuthorizer: OAuthJwtAuthorizer
       DefaultRouteSettings:
         ThrottlingBurstLimit: 1
         ThrottlingRateLimit: 1
@@ -221,8 +225,10 @@ Resources:
         SystemLogLevel: INFO
       Environment:
         Variables:
-          COGNITO_ISSUER: !Ref CognitoIssuer
+          OAUTH_ISSUER: !Ref OAuthIssuer
+          OAUTH_AUTHORIZATION_SERVER: !Ref OAuthAuthorizationServer
           MCP_RESOURCE_URL: !Ref McpTokenAudience
+          MCP_REQUIRED_SCOPE: !Ref McpRequiredScope
           EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
           CONFIRMATION_TABLE_NAME: !If
             - ExternalIntegrationsEnabled
@@ -242,7 +248,7 @@ Resources:
             PayloadFormatVersion: "2.0"
             TimeoutInMillis: 10000
             Auth:
-              Authorizer: CognitoJwtAuthorizer
+              Authorizer: OAuthJwtAuthorizer
               AuthorizationScopes:
                 - !Ref McpRequiredScope
         ProtectedResourceMetadataGet:
@@ -417,7 +423,7 @@ Resources:
 
 Outputs:
   McpEndpoint:
-    Description: Closed-by-default MCP endpoint protected by Cognito JWT.
+    Description: Closed-by-default MCP endpoint protected by an OAuth JWT.
     Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/mcp"
   ApiId:
     Description: HTTP API identifier for this environment.

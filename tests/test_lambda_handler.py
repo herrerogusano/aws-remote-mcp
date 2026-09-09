@@ -25,14 +25,17 @@ from aws_remote_mcp.security.authorization import AuthorizationConfig
 API_HOST = "example.execute-api.eu-west-1.amazonaws.com"
 PROTOCOL_VERSION = "2026-07-28"
 ISSUER = "https://cognito-idp.eu-west-1.amazonaws.com/eu-west-1_example"
+AUTHORIZATION_SERVER = "https://login.example.auth.eu-west-1.amazoncognito.com"
 RESOURCE = f"https://{API_HOST}/mcp"
 REQUIRED_SCOPE = f"{RESOURCE}/use"
 
 
 @pytest.fixture(autouse=True)
 def gateway_authorization_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("COGNITO_ISSUER", ISSUER)
+    monkeypatch.setenv("OAUTH_ISSUER", ISSUER)
+    monkeypatch.setenv("OAUTH_AUTHORIZATION_SERVER", AUTHORIZATION_SERVER)
     monkeypatch.setenv("MCP_RESOURCE_URL", RESOURCE)
+    monkeypatch.setenv("MCP_REQUIRED_SCOPE", REQUIRED_SCOPE)
 
 
 @dataclass(slots=True)
@@ -269,7 +272,7 @@ def test_gateway_serves_public_protected_resource_metadata(
 
     assert response["statusCode"] == 200
     assert metadata["resource"] == RESOURCE
-    assert metadata["authorization_servers"] == [ISSUER]
+    assert metadata["authorization_servers"] == [f"{AUTHORIZATION_SERVER}/"]
     assert metadata["scopes_supported"] == [REQUIRED_SCOPE]
     assert metadata["bearer_methods_supported"] == ["header"]
 
@@ -295,6 +298,49 @@ def test_gateway_caller_uses_validated_issuer_subject_and_scopes() -> None:
     assert caller.issuer == ISSUER
     assert caller.subject == "test-subject"
     assert caller.scopes == frozenset({REQUIRED_SCOPE})
+
+
+def test_gateway_accepts_audience_bound_provider_token_without_cognito_claims() -> None:
+    event = http_api_event("tools/list")
+    request_context = cast("dict[str, Any]", event["requestContext"])
+    authorizer = cast("dict[str, Any]", request_context["authorizer"])
+    jwt_context = cast("dict[str, Any]", authorizer["jwt"])
+    claims = cast("dict[str, Any]", jwt_context["claims"])
+    claims.pop("token_use")
+    claims["scope"] = "openid profile"
+    authorization = AuthorizationConfig(
+        issuer_url=ISSUER,
+        authorization_server_url=AUTHORIZATION_SERVER,
+        resource_server_url=RESOURCE,
+        required_scopes=(),
+    )
+
+    caller = _gateway_caller(event, authorization)
+
+    assert caller.subject == "test-subject"
+    assert caller.scopes == frozenset({"openid", "profile"})
+
+
+def test_lambda_handles_external_oauth_access_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("OAUTH_ISSUER", "https://portfolio.authkit.app")
+    monkeypatch.setenv("OAUTH_AUTHORIZATION_SERVER", "https://portfolio.authkit.app")
+    monkeypatch.setenv("MCP_REQUIRED_SCOPE", "openid")
+    event = http_api_event("tools/list")
+    request_context = cast("dict[str, Any]", event["requestContext"])
+    authorizer = cast("dict[str, Any]", request_context["authorizer"])
+    jwt_context = cast("dict[str, Any]", authorizer["jwt"])
+    claims = cast("dict[str, Any]", jwt_context["claims"])
+    claims["iss"] = "https://portfolio.authkit.app"
+    claims["scope"] = "openid profile"
+    claims.pop("token_use")
+
+    response = handler(event, FakeLambdaContext())
+
+    assert response["statusCode"] == 200
 
 
 def test_lambda_external_write_uses_confirmation_bound_to_gateway_caller(
@@ -368,7 +414,10 @@ def test_lambda_rejects_invalid_gateway_jwt_claims(
         handler(event, FakeLambdaContext())
 
 
-@pytest.mark.parametrize("name", ["COGNITO_ISSUER", "MCP_RESOURCE_URL"])
+@pytest.mark.parametrize(
+    "name",
+    ["OAUTH_ISSUER", "OAUTH_AUTHORIZATION_SERVER", "MCP_RESOURCE_URL"],
+)
 def test_lambda_requires_gateway_authorization_configuration(
     monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:

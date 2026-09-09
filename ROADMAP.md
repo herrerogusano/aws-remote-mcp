@@ -53,13 +53,17 @@ MCP client
 
 ## Next milestones
 
-The portfolio-ready DEV implementation is complete. Optional future expansion:
+The server and controlled-client validation are complete. The current portfolio
+goal is zero-configuration onboarding from multiple MCP clients:
 
-1. Consider GitHub OIDC delivery after the manual promotion process has remained
-   stable.
-2. Add a recorded demonstration while retaining the closed-by-default posture.
-3. Design a separate bounded PROD validation procedure only if live public
-   production access becomes necessary.
+1. Configure a free WorkOS AuthKit staging environment with CIMD, DCR and the
+   exact DEV resource indicator.
+2. Deploy the provider-neutral JWT configuration to closed DEV.
+3. Validate discovery, login, consent and read-only tools independently from
+   Claude, Cursor and Codex-compatible clients.
+4. Decide whether a public always-on PROD demonstration is justified after its
+   abuse and cost controls are tested in DEV.
+5. Consider GitHub OIDC delivery and a recorded demonstration afterward.
 
 ## Success criteria
 

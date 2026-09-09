@@ -47,6 +47,7 @@ $auth = aws cloudformation describe-stacks `
   --region eu-west-1 `
   --output json | ConvertFrom-Json
 $issuer = ($auth.Stacks[0].Outputs | Where-Object OutputKey -eq 'Issuer').OutputValue
+$authorizationServer = $issuer
 
 $app = aws cloudformation describe-stacks `
   --stack-name aws-remote-mcp-dev `
@@ -64,7 +65,8 @@ sam deploy `
   --capabilities CAPABILITY_IAM `
   --parameter-overrides `
     Environment=dev `
-    CognitoIssuer=$issuer `
+    OAuthIssuer=$issuer `
+    OAuthAuthorizationServer=$authorizationServer `
     McpTokenAudience=$audience `
     McpRequiredScope=$requiredScope `
   --no-confirm-changeset `

@@ -24,7 +24,7 @@ feature branch -> pull request -> develop -> DEV
 develop -> promotion pull request -> main -> PROD
 ```
 
-DEV and PROD use separate application and Cognito stacks. No Cognito user,
+DEV and PROD use separate application and authorization configurations. No user,
 SecureString, confirmation record or provider destination is promoted between
 them. PROD begins with external integrations disabled and both its endpoint and
 compute independently closed.
@@ -133,3 +133,11 @@ Validated token data becomes only `CallerContext(issuer, subject, scopes)` befor
 entering application services. The bearer token remains inside the HTTP auth
 boundary and is not a downstream credential. The initial MCP access scope is
 `<MCP resource URI>/use`; confirmation is still independently required for writes.
+
+The resource server is provider-neutral: JWT issuer, OAuth authorization-server
+issuer, exact audience and required scope are independent deployment inputs. The
+legacy Cognito profile uses its resource-bound `/use` scope. The multi-client
+profile uses WorkOS AuthKit, an exact MCP resource audience and `openid`, while
+supporting both CIMD and DCR client registration outside AWS. Provider-specific
+claims such as Cognito's `token_use` are checked when present but are not assumed
+to exist in standards-compliant access tokens.

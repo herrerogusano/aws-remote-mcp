@@ -388,7 +388,7 @@ def create_protected_app(
     )
     app.add_middleware(
         ScopeChallengeMiddleware,
-        required_scopes=authorization.required_scopes,
+        required_scopes=authorization.required_scopes or (),
     )
     return app
 
@@ -412,7 +412,7 @@ def create_gateway_app(
     """Build the API Gateway app with public RFC 9728 metadata.
 
     API Gateway validates bearer tokens before invoking the MCP route. The
-    metadata route remains public so compatible clients can discover Cognito.
+    metadata route remains public so compatible clients can discover OAuth.
     """
 
     app = create_app(
@@ -434,8 +434,10 @@ def create_gateway_app(
     app.routes.extend(
         create_protected_resource_routes(
             resource_url=AnyHttpUrl(authorization.resource_server_url),
-            authorization_servers=[AnyHttpUrl(authorization.issuer_url)],
-            scopes_supported=list(authorization.required_scopes),
+            authorization_servers=[
+                AnyHttpUrl(str(authorization.authorization_server_url))
+            ],
+            scopes_supported=list(authorization.required_scopes or ()),
             resource_name="AWS Remote MCP",
         )
     )
