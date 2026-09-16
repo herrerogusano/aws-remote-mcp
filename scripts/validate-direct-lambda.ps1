@@ -225,6 +225,7 @@ try {
     else {
         @("buscar_recursos_aws", "diagnostico", "listar_inventario_aws")
     }
+    $expectedToolNames = @($expectedToolNames | Sort-Object)
     if (($toolNames -join ",") -ne ($expectedToolNames -join ",")) {
         throw "Unexpected tool list."
     }
