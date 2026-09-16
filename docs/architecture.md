@@ -101,6 +101,20 @@ produces a sanitized partial result; two failed services produce a sanitized
 error. Local development and CI inject a deterministic fake and make no AWS
 requests.
 
+An independent opt-in operation, `aws.resource_explorer.search`, searches only
+one preconfigured Resource Explorer view. Callers can supply a bounded positive
+query and a limit from 1 to 50, but cannot choose the view, request another SDK
+operation or continue pagination. Each invocation makes exactly one `Search`
+request. The adapter discards full ARNs, account IDs, properties, tags, view
+metadata and pagination tokens; it returns only service, resource type, region
+and a bounded resource identifier. An absent view fails before client creation.
+
+The deployment never creates or modifies Resource Explorer indexes, views or
+service-linked roles. Its conditional IAM statement grants only `Search` on one
+exact existing view and distinguishes the `Search` API from `ListResources`.
+Resource Explorer remains eventually consistent and non-authoritative, so an
+empty result cannot prove that a resource does not exist.
+
 ## Local MCP transport
 
 The application core is wrapped in the official MCP Python SDK 2.x ASGI app:

@@ -69,6 +69,13 @@ def build_default_registry() -> OperationRegistry:
                 "2026-09-02.",
             ),
             OperationSpec(
+                "aws.resource_explorer.search",
+                OperationClassification.FREE_VERIFIED_READ,
+                "One bounded Resource Explorer Search request; AWS documents "
+                "search as no-additional-charge, pricing reference verified "
+                "2026-09-16.",
+            ),
+            OperationSpec(
                 "aws.cost_explorer.get_cost_and_usage",
                 OperationClassification.CONTROLLED_BILLABLE,
                 "Cost Explorer requests are potentially billable.",

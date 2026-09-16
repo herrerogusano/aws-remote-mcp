@@ -41,6 +41,7 @@ Current-protocol clients can discover and call:
 
 - `diagnostico`
 - `listar_inventario_aws`
+- `buscar_recursos_aws`
 - `preparar_mensaje_telegram`
 - `preparar_tarjeta_trello`
 
@@ -48,6 +49,11 @@ Local development returns a deterministic fixture for AWS inventory and never
 contacts AWS. Execute/send/create tools remain excluded from the default local
 profile and are exposed remotely only by the explicitly enabled integration
 profile documented in `docs/external-integrations.md`.
+
+Remote deployments can also opt in to a single-page Resource Explorer search
+over one exact pre-existing view. It is disabled by default, creates no indexes
+or views, returns at most 50 sanitized results and never exposes account IDs,
+full ARNs, tags or raw resource properties. See `docs/aws-inventory.md`.
 
 ## Branch and environment model
 

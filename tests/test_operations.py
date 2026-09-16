@@ -38,3 +38,11 @@ def test_verified_free_read_is_allowed() -> None:
     assert spec.classification is OperationClassification.FREE_VERIFIED_READ
     assert "ListFunctions" in spec.evidence
     assert "GetApis" in spec.evidence
+
+
+def test_resource_explorer_search_is_registered_as_a_verified_read() -> None:
+    spec = build_default_registry().require_automatic("aws.resource_explorer.search")
+
+    assert spec.classification is OperationClassification.FREE_VERIFIED_READ
+    assert "Resource Explorer" in spec.evidence
+    assert "Search" in spec.evidence

@@ -37,9 +37,15 @@ Parameters:
     Default: /portfolio/aws-remote-mcp/dev/integrations
     AllowedPattern: "^/portfolio/aws-remote-mcp/(dev|prod)/[a-z0-9-]+$"
     Description: Exact Standard SecureString parameter containing integration config.
+  ResourceExplorerViewArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^arn:aws:resource-explorer-2:eu-west-1:[0-9]{12}:view/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9-]{1,64}$"
+    Description: Optional exact ARN of a pre-existing Resource Explorer view in eu-west-1; empty disables Resource Explorer search.
 
 Conditions:
   ExternalIntegrationsEnabled: !Equals [!Ref EnableExternalIntegrations, "true"]
+  ResourceExplorerViewConfigured: !Not [!Equals [!Ref ResourceExplorerViewArn, ""]]
 
 Globals:
   Function:
@@ -115,6 +121,17 @@ Resources:
                 Effect: Allow
                 Action: apigateway:GET
                 Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis"
+              - !If
+                - ResourceExplorerViewConfigured
+                - Sid: SearchOnlyConfiguredResourceExplorerView
+                  Effect: Allow
+                  Action: resource-explorer-2:Search
+                  Resource: !Ref ResourceExplorerViewArn
+                  Condition:
+                    StringEquals:
+                      aws:RequestedRegion: eu-west-1
+                      resource-explorer-2:Operation: Search
+                - !Ref AWS::NoValue
               - !If
                 - ExternalIntegrationsEnabled
                 - Sid: PersistOnlyMcpConfirmations
@@ -230,6 +247,7 @@ Resources:
           MCP_RESOURCE_URL: !Ref McpTokenAudience
           MCP_REQUIRED_SCOPE: !Ref McpRequiredScope
           EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
+          RESOURCE_EXPLORER_VIEW_ARN: !Ref ResourceExplorerViewArn
           CONFIRMATION_TABLE_NAME: !If
             - ExternalIntegrationsEnabled
             - !Ref ConfirmationTable

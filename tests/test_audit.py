@@ -56,6 +56,41 @@ def test_audit_record_omits_payload_confirmation_and_provider_data() -> None:
     assert secret not in str(record)
 
 
+def test_resource_explorer_audit_uses_only_allowlisted_metadata_and_counters() -> None:
+    query = "service:lambda region:eu-west-1"
+    account_id = "123456789012"
+    raw_arn = f"arn:aws:lambda:eu-west-1:{account_id}:function:private"
+    result = ToolResult(
+        status="ok",
+        data={
+            "query": query,
+            "resources": [{"resource_id": "function:private"}],
+            "provider_response": {"Arn": raw_arn, "OwningAccountId": account_id},
+        },
+        counters=OperationCounters(sdk_requests=1, resources=1),
+    )
+
+    record = build_tool_audit_record(
+        tool="buscar_recursos_aws",
+        result=result,
+        caller=CallerContext("https://issuer.example", "caller-1"),
+        environment="dev",
+        request_id="request-2",
+    )
+
+    assert record["tool"] == "buscar_recursos_aws"
+    assert record["status"] == "ok"
+    assert record["counters"] == {
+        "sdk_requests": 1,
+        "resources": 1,
+        "external_writes_attempted": 0,
+        "external_writes_succeeded": 0,
+    }
+    assert query not in str(record)
+    assert account_id not in str(record)
+    assert raw_arn not in str(record)
+
+
 @pytest.mark.parametrize(
     ("tool", "environment", "request_id"),
     [

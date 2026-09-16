@@ -165,8 +165,9 @@ def create_server(
         version=SERVER_VERSION,
         description="Authenticated, cost-aware AWS remote MCP server.",
         instructions=(
-            "AWS inventory is read-only and bounded; external writes require an "
-            "exact, expiring, single-use confirmation."
+            "AWS inventory and Resource Explorer search are read-only and "
+            "bounded; external writes require an exact, expiring, single-use "
+            "confirmation."
         ),
         auth=auth_settings,
         token_verifier=token_verifier,
@@ -223,6 +224,15 @@ def create_server(
 
         result = tools.run_aws_operation("aws.inventory.list", {})
         return audited_result("listar_inventario_aws", result)
+
+    @server.tool(name="buscar_recursos_aws", structured_output=True)
+    def search_aws_resources(query: str = "*", limit: int = 25) -> dict[str, Any]:
+        """Search an explicitly configured AWS Resource Explorer view safely."""
+
+        result = tools.run_aws_operation(
+            "aws.resource_explorer.search", {"query": query, "limit": limit}
+        )
+        return audited_result("buscar_recursos_aws", result)
 
     if include_previews and include_external_writes:
 

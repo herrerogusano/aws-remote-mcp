@@ -142,7 +142,11 @@ def test_repeated_events_use_fresh_sdk_lifespan(
     for response in (first, second):
         assert response["statusCode"] == 200
         names = {tool["name"] for tool in response_body(response)["result"]["tools"]}
-        assert names == {"diagnostico", "listar_inventario_aws"}
+        assert names == {
+            "diagnostico",
+            "listar_inventario_aws",
+            "buscar_recursos_aws",
+        }
 
 
 @pytest.mark.parametrize("environment", ["dev", "prod"])
@@ -197,6 +201,7 @@ def test_lambda_inventory_uses_injected_bounded_adapter(
 ) -> None:
     monkeypatch.setenv("APP_ENVIRONMENT", "dev")
     monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("RESOURCE_EXPLORER_VIEW_ARN", "")
     fake = FakeAwsAdapter(
         responses={
             "aws.inventory.list": AwsAdapterResult(
@@ -207,8 +212,11 @@ def test_lambda_inventory_uses_injected_bounded_adapter(
         }
     )
 
-    def inventory_adapter(*, region: str) -> FakeAwsAdapter:
+    def inventory_adapter(
+        *, region: str, resource_explorer_view_arn: str | None = None
+    ) -> FakeAwsAdapter:
         assert region == "eu-west-1"
+        assert resource_explorer_view_arn is None
         return fake
 
     monkeypatch.setattr(

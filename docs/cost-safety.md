@@ -50,6 +50,15 @@ received by hosted APIs; no separate per-request price is documented for these
 two management reads. The enclosing API Gateway request and Lambda execution
 remain part of the existing bounded-window estimate.
 
+The separate Resource Explorer search capability, when explicitly enabled,
+makes one non-paginated `Search` request per tool call and returns at most 50
+matches. AWS offers Resource Explorer search at no additional charge. The MCP
+request still uses the same metered API Gateway and Lambda path already counted
+in the bounded-window estimate. Its view ARN is empty by default; supplying one
+does not create or enable Resource Explorer, indexes, views, or other persistent
+infrastructure. The Lambda role receives only `Search` on that exact existing
+view, so no setup or indexing permissions are added.
+
 ## Cost envelopes
 
 The deployed controls produce three materially different envelopes:
@@ -112,6 +121,9 @@ generate request/compute charges while idle.
 - The Cost Explorer API is not called by scripts or runtime controls: each primary
   billing-view request costs $0.01 and current-month data can be delayed by about
   24 hours. Existing AWS Budget email notifications provide the account warning.
+- Resource Explorer is never turned on or configured by the stack. Search stays
+  disabled unless an existing `eu-west-1` view ARN is explicitly approved and
+  supplied; PROD keeps the value empty.
 
 ## Sources
 
@@ -125,6 +137,9 @@ generate request/compute charges while idle.
 - https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html
+- https://docs.aws.amazon.com/resource-explorer/latest/apireference/API_Search.html
+- https://docs.aws.amazon.com/service-authorization/latest/reference/list_resource-explorer-2.html
+- https://aws.amazon.com/resourceexplorer/pricing/
 - https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/on-demand-capacity-mode-max-throughput.html
 - https://aws.amazon.com/dynamodb/pricing/
 - https://aws.amazon.com/systems-manager/pricing/
