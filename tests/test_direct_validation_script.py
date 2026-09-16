@@ -31,6 +31,7 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     assert "$inventoryContent.counters.resources -gt 20" in script
     assert "$inventoryContent.counters.external_writes_attempted -ne 0" in script
     assert 'name = "buscar_recursos_aws"' in script
+    assert "$expectedToolNames | Sort-Object" in script
     assert 'query = "service:lambda region:eu-west-1"' in script
     assert "$resourceSearchContent.data.returned -gt 5" in script
     assert "$resourceSearchContent.counters.sdk_requests -ne 1" in script
