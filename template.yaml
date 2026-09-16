@@ -32,6 +32,13 @@ Parameters:
       - "false"
       - "true"
     Description: Create bounded confirmation state and expose confirmed writes.
+  EnableCostExplorer:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "true"
+    Description: Grant one primary-billing-view cost read and expose its confirmed tool.
   IntegrationConfigParameterName:
     Type: String
     Default: /portfolio/aws-remote-mcp/dev/integrations
@@ -45,6 +52,10 @@ Parameters:
 
 Conditions:
   ExternalIntegrationsEnabled: !Equals [!Ref EnableExternalIntegrations, "true"]
+  CostExplorerEnabled: !Equals [!Ref EnableCostExplorer, "true"]
+  PersistentConfirmationEnabled: !Or
+    - !Condition ExternalIntegrationsEnabled
+    - !Condition CostExplorerEnabled
   ResourceExplorerViewConfigured: !Not [!Equals [!Ref ResourceExplorerViewArn, ""]]
 
 Globals:
@@ -133,7 +144,14 @@ Resources:
                       resource-explorer-2:Operation: Search
                 - !Ref AWS::NoValue
               - !If
-                - ExternalIntegrationsEnabled
+                - CostExplorerEnabled
+                - Sid: ReadPrimaryBillingViewCostAndUsage
+                  Effect: Allow
+                  Action: ce:GetCostAndUsage
+                  Resource: !Sub "arn:${AWS::Partition}:billing::${AWS::AccountId}:billingview/primary"
+                - !Ref AWS::NoValue
+              - !If
+                - PersistentConfirmationEnabled
                 - Sid: PersistOnlyMcpConfirmations
                   Effect: Allow
                   Action:
@@ -195,7 +213,7 @@ Resources:
 
   ConfirmationTable:
     Type: AWS::DynamoDB::Table
-    Condition: ExternalIntegrationsEnabled
+    Condition: PersistentConfirmationEnabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -203,7 +221,7 @@ Resources:
       BillingMode: PAY_PER_REQUEST
       OnDemandThroughput:
         MaxReadRequestUnits: 1
-        MaxWriteRequestUnits: 1
+        MaxWriteRequestUnits: 2
       AttributeDefinitions:
         - AttributeName: token_digest
           AttributeType: S
@@ -247,9 +265,14 @@ Resources:
           MCP_RESOURCE_URL: !Ref McpTokenAudience
           MCP_REQUIRED_SCOPE: !Ref McpRequiredScope
           EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
+          COST_EXPLORER_ENABLED: !Ref EnableCostExplorer
+          COST_EXPLORER_BILLING_VIEW_ARN: !If
+            - CostExplorerEnabled
+            - !Sub "arn:${AWS::Partition}:billing::${AWS::AccountId}:billingview/primary"
+            - ""
           RESOURCE_EXPLORER_VIEW_ARN: !Ref ResourceExplorerViewArn
           CONFIRMATION_TABLE_NAME: !If
-            - ExternalIntegrationsEnabled
+            - PersistentConfirmationEnabled
             - !Ref ConfirmationTable
             - ""
           INTEGRATION_CONFIG_PARAMETER: !If

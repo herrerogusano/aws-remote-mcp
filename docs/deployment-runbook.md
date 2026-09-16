@@ -20,8 +20,10 @@ sam build --template-file template.yaml `
 The template accepts only `Environment=dev`. It needs no secrets and adds only
 the base inventory reads documented in `docs/aws-inventory.md`; Resource
 Explorer is separately disabled unless an exact, pre-existing view ARN is
-explicitly supplied. The Cognito stack must already exist because its exact
-issuer and the existing API identifier are deployment inputs.
+explicitly supplied. Cost Explorer is also disabled by default; this runbook
+always deploys with `EnableCostExplorer=false`. The Cognito stack must already
+exist because its exact issuer and the existing API identifier are deployment
+inputs.
 
 Before deployment, inspect `.aws-sam/build-current/template.yaml` and require the
 `$default` stage, all three expected routes, `McpRequiredScope` and the two base
@@ -32,6 +34,15 @@ on that exact view ARN, constrained to `eu-west-1` and
 `resource-explorer-2:Operation=Search`. Always name this fresh generated template
 explicitly; an implicit `sam deploy` can reuse a stale
 `.aws-sam/build/template.yaml`.
+
+With `EnableCostExplorer=false`, require that the generated role has no Cost
+Explorer action, `COST_EXPLORER_ENABLED` is `false` and
+`COST_EXPLORER_BILLING_VIEW_ARN` is empty. If the switch is separately approved
+as `true`, require only `ce:GetCostAndUsage`, in its own statement on
+`arn:<partition>:billing::<account>:billingview/primary`; require
+`COST_EXPLORER_BILLING_VIEW_ARN` to contain that exact ARN and to be passed
+explicitly to the API. No Cost Explorer API call is part of deployment or this
+preflight.
 
 ## Inventory IAM/deployment gate
 
@@ -52,6 +63,15 @@ This project does not enable Resource Explorer or create an index, view,
 service-linked role, or other AWS resource. Never use `AWSResourceExplorerFullAccess`
 or a managed read-only policy. Until that opt-in is separately approved, keep
 the parameter empty in DEV and PROD.
+
+Keep `EnableCostExplorer=false` for this standard closed deployment. A later
+Cost Explorer opt-in requires separate approval because each API page costs
+`$0.01`. It adds only the exact primary-billing-view read permission and reuses
+the single-use confirmation table for both confirmations and an atomic global
+three-attempt UTC-month quota (`$0.03` maximum API-request charge from this MCP).
+It neither enables the API endpoint nor activates Cost Explorer at the account
+level. Do not use it in the ordinary Inspector or direct-Lambda validation
+procedure.
 
 ## Approved closed deployment
 
@@ -83,6 +103,7 @@ sam deploy `
     OAuthAuthorizationServer=$authorizationServer `
     McpTokenAudience=$audience `
     McpRequiredScope=$requiredScope `
+    EnableCostExplorer=false `
     "ResourceExplorerViewArn=" `
   --no-confirm-changeset `
   --no-fail-on-empty-changeset
@@ -188,6 +209,12 @@ decision.
   and, only when explicitly configured, one view-scoped Resource Explorer
   search; shutdown execution; scheduler;
 - deployment artifacts in the existing SAM-managed regional S3 bucket.
+
+The on-demand confirmation table exists only when external integrations or
+Cost Explorer are enabled. When both `EnableExternalIntegrations` and
+`EnableCostExplorer` are false, no table or confirmation permissions are
+created. An existing DEV profile may keep external integrations enabled while
+Cost Explorer remains independently disabled.
 
 Only during a validation window, one auto-deleting Scheduler schedule and one
 temporary CloudWatch alarm also exist. This app stack contains no Cognito, VPC,

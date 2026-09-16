@@ -46,3 +46,14 @@ def test_resource_explorer_search_is_registered_as_a_verified_read() -> None:
     assert spec.classification is OperationClassification.FREE_VERIFIED_READ
     assert "Resource Explorer" in spec.evidence
     assert "Search" in spec.evidence
+
+
+def test_cost_explorer_stays_explicitly_controlled_billable() -> None:
+    registry = build_default_registry()
+
+    assert (
+        registry.classify("aws.cost_explorer.get_cost_and_usage")
+        is OperationClassification.CONTROLLED_BILLABLE
+    )
+    with pytest.raises(OperationBlockedError):
+        registry.require_automatic("aws.cost_explorer.get_cost_and_usage")

@@ -52,6 +52,30 @@ SDK request, five resources and zero writes without arguments or result data.
 Cleanup confirmed API disablement, Lambda concurrency zero, no alarm and no
 schedule. Cost Explorer is not part of this increment.
 
+## Cost Explorer increment
+
+The Cost Explorer capability is implemented and verified offline but has not
+been deployed or called. It is hidden unless `EnableCostExplorer=true`; the
+default and PROD value remain false. Preparation validates an explicit date
+range of at most 31 days, `DAILY` or `MONTHLY` granularity, and one `SERVICE` or
+`REGION` grouping without making a Cost Explorer request.
+
+Execution requires the exact five-minute, caller-bound, single-use confirmation
+and consumes it before one `GetCostAndUsage` request. The adapter uses the
+account's exact primary billing view, `UnblendedCost` in USD, `us-east-1`, no
+automatic retry and no pagination. A returned page token is discarded and
+reported only as truncation; output is sanitized and capped at 31 periods and
+100 groups. The current published API price is `$0.01` per request/page. An
+atomic global counter in the confirmation table permits at most three attempts
+per UTC month, so this MCP can initiate at most `$0.03` of those API requests in
+one month. Failed downstream attempts consume a slot, and unavailable quota
+state fails closed before AWS.
+
+The template adds no Cost Explorer resource or account-level activation. Its
+conditional IAM statement contains only `ce:GetCostAndUsage` on the exact
+primary billing-view ARN and reuses the on-demand confirmation table. A live
+DEV deployment and the first paid query remain a separate reviewed gate.
+
 ## Current state
 
 The application core, local Streamable HTTP transport, authorization contract
@@ -176,10 +200,11 @@ The confirmed Telegram and Trello integration profile is deployed in closed
 DEV. The Standard SecureString exists at the valid, non-reserved path
 `/portfolio/aws-remote-mcp/dev/integrations`; its temporary DPAPI-encrypted local
 handoff was deleted after provisioning. The on-demand confirmation table is
-active, encrypted, TTL-enabled and capped at one read and write request unit per
-second. Its exact three DynamoDB actions and the exact SSM `GetParameter` resource
-were independently audited. API Gateway remains disabled, Lambda concurrency is
-zero and route throttling remains one request per second with burst one.
+active, encrypted, TTL-enabled and capped at one read request unit and two write
+request units per second. Its exact three DynamoDB actions and the exact SSM
+`GetParameter` resource were independently audited. API Gateway remains
+disabled, Lambda concurrency is zero and route throttling remains one request
+per second with burst one.
 
 The first real external validation completed through direct Lambda invocation
 while API Gateway remained disabled. Exactly one confirmed Telegram message and

@@ -10,6 +10,7 @@ from typing import Any
 
 from mangum import Mangum
 
+from aws_remote_mcp.adapters.aws_cost_explorer import AwsCostExplorerAdapter
 from aws_remote_mcp.adapters.aws_inventory import AwsInventoryAdapter
 from aws_remote_mcp.adapters.external_integrations import (
     SsmIntegrationConfigProvider,
@@ -21,6 +22,7 @@ from aws_remote_mcp.core.confirmation import (
     ConfirmationProvider,
     DynamoDbConfirmationGuard,
 )
+from aws_remote_mcp.core.cost_quota import DynamoDbCostRequestLimiter
 from aws_remote_mcp.core.models import CallerContext
 from aws_remote_mcp.http_server import create_gateway_app
 from aws_remote_mcp.security.authorization import AuthorizationConfig
@@ -50,14 +52,17 @@ def _boto_client(service: str, region: str) -> Any:
 
 
 def _external_components(
-    region: str, environment: str
+    region: str,
+    environment: str,
+    confirmations: ConfirmationProvider | None = None,
 ) -> tuple[ConfirmationProvider, TelegramAdapter, TrelloAdapter]:
-    table_name = _required_environment("CONFIRMATION_TABLE_NAME")
+    if confirmations is None:
+        table_name = _required_environment("CONFIRMATION_TABLE_NAME")
+        confirmations = DynamoDbConfirmationGuard(
+            table_name=table_name,
+            client=_boto_client("dynamodb", region),
+        )
     parameter_name = _required_environment("INTEGRATION_CONFIG_PARAMETER")
-    confirmations = DynamoDbConfirmationGuard(
-        table_name=table_name,
-        client=_boto_client("dynamodb", region),
-    )
     config = SsmIntegrationConfigProvider(
         parameter_name=parameter_name,
         environment=environment,
@@ -168,12 +173,37 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if external_setting not in {"true", "false"}:
         raise RuntimeError("EXTERNAL_INTEGRATIONS_ENABLED must be true or false.")
     external_enabled = external_setting == "true"
+    cost_setting = os.environ.get("COST_EXPLORER_ENABLED", "false")
+    if cost_setting not in {"true", "false"}:
+        raise RuntimeError("COST_EXPLORER_ENABLED must be true or false.")
+    cost_enabled = cost_setting == "true"
     confirmations: ConfirmationProvider | None = None
+    cost_request_limiter = None
     telegram: TelegramAdapter | None = None
     trello: TrelloAdapter | None = None
+    if cost_enabled:
+        table_name = _required_environment("CONFIRMATION_TABLE_NAME")
+        ddb_client = _boto_client("dynamodb", _required_environment("AWS_REGION"))
+        confirmations = DynamoDbConfirmationGuard(
+            table_name=table_name,
+            client=ddb_client,
+        )
+        cost_request_limiter = DynamoDbCostRequestLimiter(
+            table_name=table_name,
+            client=ddb_client,
+        )
     if external_enabled:
-        confirmations, telegram, trello = _external_components(
-            _required_environment("AWS_REGION"), environment
+        region = _required_environment("AWS_REGION")
+        if confirmations is None:
+            confirmations, telegram, trello = _external_components(region, environment)
+        else:
+            confirmations, telegram, trello = _external_components(
+                region, environment, confirmations
+            )
+    cost_explorer = None
+    if cost_enabled:
+        cost_explorer = AwsCostExplorerAdapter(
+            billing_view_arn=_required_environment("COST_EXPLORER_BILLING_VIEW_ARN")
         )
     app = create_gateway_app(
         authorization=authorization,
@@ -187,6 +217,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         ),
         caller_provider=lambda: caller,
         include_external_writes=external_enabled,
+        include_cost_explorer=cost_enabled,
+        aws_cost_explorer_adapter=cost_explorer,
+        cost_request_limiter=cost_request_limiter,
         confirmations=confirmations,
         telegram_adapter=telegram,
         trello_adapter=trello,

@@ -11,8 +11,9 @@ avoids copying identity, credentials or confirmation state across environments.
 
 The two stacks are `aws-remote-mcp-prod` and `aws-remote-mcp-auth-prod`. Resource
 names, logs, API, Lambda roles, shutdown controls and Cognito are separate from
-DEV. The application deploys with `EnableExternalIntegrations=false`, so PROD has
-no confirmation table, provider parameter access or provider tools.
+DEV. The application deploys with `EnableExternalIntegrations=false` and
+`EnableCostExplorer=false`, so PROD has no confirmation table, provider
+parameter access, provider tools or Cost Explorer permission/tool.
 
 The empty Cognito Plus pool has no monthly active user. API Gateway and Lambda
 remain disabled while idle. Log groups retain data for seven days. No alarm or
@@ -39,6 +40,7 @@ Both application deployments must explicitly use:
 Environment=prod
 EnableExternalIntegrations=false
 IntegrationConfigParameterName=/portfolio/aws-remote-mcp/prod/integrations
+EnableCostExplorer=false
 ResourceExplorerViewArn=<empty>
 ```
 
@@ -60,6 +62,9 @@ After the final update, require all of the following:
 - the Cognito pool has deletion protection, enforced threat protection, required
   software-token MFA, administrator-only creation and zero users;
 - no PROD confirmation table or integration parameter exists;
+- `EnableCostExplorer=false`, both Cost Explorer Lambda environment values are
+  false/empty (`COST_EXPLORER_ENABLED` and `COST_EXPLORER_BILLING_VIEW_ARN`),
+  and the role has no `ce:GetCostAndUsage` permission;
 - no PROD request alarm or one-time shutdown schedule exists;
 - neither DEV stack changed during the deployment.
 

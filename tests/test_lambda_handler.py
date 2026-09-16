@@ -10,6 +10,7 @@ import pytest
 
 from aws_remote_mcp.adapters.fakes import (
     FakeAwsAdapter,
+    FakeAwsCostExplorerAdapter,
     FakeTelegramAdapter,
     FakeTrelloAdapter,
 )
@@ -147,6 +148,74 @@ def test_repeated_events_use_fresh_sdk_lifespan(
             "listar_inventario_aws",
             "buscar_recursos_aws",
         }
+
+
+def test_lambda_cost_explorer_defaults_to_hidden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    event = http_api_event("tools/list")
+
+    response = handler(event, FakeLambdaContext())
+    names = {tool["name"] for tool in response_body(response)["result"]["tools"]}
+
+    assert response["statusCode"] == 200
+    assert "preparar_consulta_costes_aws" not in names
+    assert "consultar_costes_aws" not in names
+
+
+def test_lambda_rejects_invalid_cost_explorer_opt_in_value(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("COST_EXPLORER_ENABLED", "yes")
+
+    with pytest.raises(RuntimeError, match="COST_EXPLORER_ENABLED"):
+        handler(http_api_event("tools/list"), FakeLambdaContext())
+
+
+def test_lambda_cost_explorer_opt_in_does_not_require_external_integrations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    billing_view_arn = "arn:aws:billing::123456789012:billingview/primary"
+    cost_adapter = FakeAwsCostExplorerAdapter(billing_view_arn=billing_view_arn)
+    created_clients: list[tuple[str, str]] = []
+
+    def boto_client(service: str, region: str) -> object:
+        created_clients.append((service, region))
+        return object()
+
+    def cost_explorer_adapter(*, billing_view_arn: str) -> FakeAwsCostExplorerAdapter:
+        assert billing_view_arn == cost_adapter.billing_view_arn
+        return cost_adapter
+
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("EXTERNAL_INTEGRATIONS_ENABLED", "false")
+    monkeypatch.setenv("COST_EXPLORER_ENABLED", "true")
+    monkeypatch.setenv("CONFIRMATION_TABLE_NAME", "confirmations")
+    monkeypatch.setenv("COST_EXPLORER_BILLING_VIEW_ARN", billing_view_arn)
+    monkeypatch.delenv("INTEGRATION_CONFIG_PARAMETER", raising=False)
+    monkeypatch.setattr("aws_remote_mcp.lambda_handler._boto_client", boto_client)
+    monkeypatch.setattr(
+        "aws_remote_mcp.lambda_handler.AwsCostExplorerAdapter",
+        cost_explorer_adapter,
+    )
+    monkeypatch.setattr(
+        "aws_remote_mcp.lambda_handler._external_components",
+        lambda *_args, **_kwargs: pytest.fail(
+            "Cost Explorer must not initialize Telegram or Trello."
+        ),
+    )
+
+    response = handler(http_api_event("tools/list"), FakeLambdaContext())
+    names = {tool["name"] for tool in response_body(response)["result"]["tools"]}
+
+    assert response["statusCode"] == 200
+    assert {"preparar_consulta_costes_aws", "consultar_costes_aws"} <= names
+    assert created_clients == [("dynamodb", "eu-west-1")]
 
 
 @pytest.mark.parametrize("environment", ["dev", "prod"])

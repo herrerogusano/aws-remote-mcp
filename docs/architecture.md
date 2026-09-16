@@ -115,6 +115,14 @@ exact existing view and distinguishes the `Search` API from `ListResources`.
 Resource Explorer remains eventually consistent and non-authoritative, so an
 empty result cannot prove that a resource does not exist.
 
+The separate Cost Explorer path is disabled by default. When enabled, a prepare
+tool validates a maximum 31-day query and creates no billing request. Execution
+atomically consumes both the caller-bound confirmation and one of three global
+UTC-month quota slots before issuing exactly one non-retried, non-paginated
+`GetCostAndUsage` request against the account's primary billing view. Missing or
+unavailable quota state fails closed. DEV persists the counter in the existing
+confirmation table; local development uses an in-memory implementation only.
+
 ## Local MCP transport
 
 The application core is wrapped in the official MCP Python SDK 2.x ASGI app:

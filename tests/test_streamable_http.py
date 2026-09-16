@@ -28,6 +28,22 @@ from aws_remote_mcp.http_server import (
     create_app,
 )
 
+
+class FakeCostExplorerAdapter:
+    billing_view_arn = "arn:aws:billing::123456789012:billingview/primary"
+
+    def __init__(self) -> None:
+        self.calls: list[Any] = []
+
+    def get_cost_and_usage(self, query: Any) -> AwsAdapterResult:
+        self.calls.append(query)
+        return AwsAdapterResult(
+            data={"region": "us-east-1", "read_only": True},
+            sdk_requests=1,
+            resources=0,
+        )
+
+
 PROTOCOL_VERSION = "2026-07-28"
 META = {
     "io.modelcontextprotocol/protocolVersion": PROTOCOL_VERSION,
@@ -308,6 +324,60 @@ def test_external_tools_require_prepare_then_exact_confirmation() -> None:
     assert content["status"] == "ok"
     assert content["counters"]["external_writes_attempted"] == 1
     assert telegram.calls == [("owner", "hello")]
+
+
+def test_cost_explorer_tools_are_opt_in_and_require_confirmation() -> None:
+    ce = FakeCostExplorerAdapter()
+    app = create_app(
+        allowed_hosts=("testserver",),
+        include_cost_explorer=True,
+        aws_cost_explorer_adapter=ce,
+        confirmations=ConfirmationGuard(),
+    )
+    args = {
+        "start_date": "2026-01-01",
+        "end_date": "2026-01-02",
+        "granularity": "DAILY",
+        "group_by": "SERVICE",
+    }
+
+    with TestClient(app) as client:
+        body, headers = modern_request("tools/list")
+        listing = client.post("/mcp", json=body, headers=headers)
+        names = {tool["name"] for tool in response_json(listing)["result"]["tools"]}
+        assert "preparar_consulta_costes_aws" in names
+        assert "consultar_costes_aws" in names
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "preparar_consulta_costes_aws",
+                "arguments": args,
+            },
+            name="preparar_consulta_costes_aws",
+        )
+        prepared = client.post("/mcp", json=body, headers=headers)
+        preview = response_json(prepared)["result"]["structuredContent"]
+        assert preview["status"] == "confirmation_required"
+        assert preview["data"]["preview"]["max_cost_usd"] == "0.01"
+        assert ce.calls == []
+        token = preview["confirmation"]["token"]
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "consultar_costes_aws",
+                "arguments": {**args, "confirmation": token},
+            },
+            name="consultar_costes_aws",
+        )
+        executed = client.post("/mcp", json=body, headers=headers)
+        content = response_json(executed)["result"]["structuredContent"]
+
+    assert content["status"] == "ok"
+    assert content["counters"]["sdk_requests"] == 1
+    assert content["counters"]["external_writes_attempted"] == 0
+    assert len(ce.calls) == 1
 
 
 def test_unknown_tool_is_a_protocol_error_result(http_client: TestClient) -> None:

@@ -55,6 +55,13 @@ over one exact pre-existing view. It is disabled by default, creates no indexes
 or views, returns at most 50 sanitized results and never exposes account IDs,
 full ARNs, tags or raw resource properties. See `docs/aws-inventory.md`.
 
+A separate Cost Explorer opt-in exposes a prepare/confirm pair for one bounded
+`GetCostAndUsage` request. It is disabled by default, scoped to the account's
+primary billing view, never paginates or retries, and discloses the current
+`$0.01` per-request cost before issuing a five-minute single-use confirmation.
+An atomic global quota permits at most three attempts per UTC month, capping
+this MCP's Cost Explorer API-request charge at `$0.03` per month.
+
 ## Branch and environment model
 
 ```text

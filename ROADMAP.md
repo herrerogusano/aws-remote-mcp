@@ -55,14 +55,18 @@ MCP client
 - Opt-in Resource Explorer search deployed and validated in closed DEV with
   one-page bounds, sanitized identifiers and an exact-view least-privilege IAM
   contract.
+- Opt-in Cost Explorer query implemented and verified offline with an exact
+  primary-billing-view IAM scope, five-minute single-use confirmation and a
+  strict one-request, one-page `$0.01` execution contract plus a persistent
+  three-request/`$0.03` global monthly ceiling.
 
 ## Next milestones
 
 The server and Codex client validation are complete. The next portfolio steps
 remain deliberately gated:
 
-1. Add a separately confirmed, single-page Cost Explorer query with its explicit
-   `$0.01` API cost only after Resource Explorer validation.
+1. Review the closed DEV Cost Explorer change set, then separately decide
+   whether to deploy the opt-in and spend `$0.01` on one live validation.
 2. Optionally validate onboarding from Claude or another compatible client.
 3. Decide whether a public always-on PROD demonstration is justified after its
    abuse and cost controls are tested in DEV.
