@@ -2,7 +2,10 @@
 param(
     [string]$StackName = "aws-remote-mcp-dev",
     [string]$Region = "eu-west-1",
-    [switch]$ValidateExternalWrites
+    [switch]$ValidateExternalWrites,
+    [switch]$ValidateCostExplorer,
+    [string]$CostStartDate = "",
+    [string]$CostEndDate = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -50,6 +53,8 @@ $audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
 $requiredScope = $functionConfig.Environment.Variables.MCP_REQUIRED_SCOPE
 $externalIntegrationsEnabled = `
     $functionConfig.Environment.Variables.EXTERNAL_INTEGRATIONS_ENABLED -eq "true"
+$costExplorerEnabled = `
+    $functionConfig.Environment.Variables.COST_EXPLORER_ENABLED -eq "true"
 if (
     [string]::IsNullOrWhiteSpace($issuer) -or
     [string]::IsNullOrWhiteSpace($requiredScope) -or
@@ -211,19 +216,24 @@ try {
 
     $listed = Invoke-DirectMcp -Method "tools/list" -Params @{}
     $toolNames = @($listed.result.tools | ForEach-Object { $_.name } | Sort-Object)
-    $expectedToolNames = if ($externalIntegrationsEnabled) {
-        @(
+    $expectedToolNames = @(
+        "buscar_recursos_aws",
+        "diagnostico",
+        "listar_inventario_aws"
+    )
+    if ($externalIntegrationsEnabled) {
+        $expectedToolNames += @(
             "crear_tarjeta_trello",
-            "buscar_recursos_aws",
-            "diagnostico",
             "enviar_mensaje_telegram",
-            "listar_inventario_aws",
             "preparar_mensaje_telegram",
             "preparar_tarjeta_trello"
         )
     }
-    else {
-        @("buscar_recursos_aws", "diagnostico", "listar_inventario_aws")
+    if ($costExplorerEnabled) {
+        $expectedToolNames += @(
+            "consultar_costes_aws",
+            "preparar_consulta_costes_aws"
+        )
     }
     $expectedToolNames = @($expectedToolNames | Sort-Object)
     if (($toolNames -join ",") -ne ($expectedToolNames -join ",")) {
@@ -286,6 +296,70 @@ try {
         throw "Bounded Resource Explorer search contract failed."
     }
     $validation["resource_explorer"] = "ok; 1 read; max 5 resources; no writes"
+
+    if ($ValidateCostExplorer) {
+        if (-not $costExplorerEnabled) {
+            throw "Cost Explorer validation requires the deployed opt-in."
+        }
+        if (
+            $CostStartDate -notmatch '^\d{4}-\d{2}-\d{2}$' -or
+            $CostEndDate -notmatch '^\d{4}-\d{2}-\d{2}$'
+        ) {
+            throw "Cost Explorer validation requires exact start and end dates."
+        }
+
+        $costArguments = @{
+            start_date = $CostStartDate
+            end_date = $CostEndDate
+            granularity = "MONTHLY"
+            group_by = "SERVICE"
+        }
+        $costPrepared = Invoke-DirectMcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "preparar_consulta_costes_aws"
+                arguments = $costArguments
+            } `
+            -Name "preparar_consulta_costes_aws"
+        $costPreview = $costPrepared.result.structuredContent
+        if (
+            $costPreview.status -ne "confirmation_required" -or
+            -not $costPreview.confirmation.token -or
+            $costPreview.data.preview.max_cost_usd -ne "0.01" -or
+            $costPreview.data.preview.max_api_requests -ne 1 -or
+            $costPreview.data.preview.monthly_request_limit -ne 3 -or
+            $costPreview.data.preview.monthly_max_api_cost_usd -ne "0.03"
+        ) {
+            throw "Cost Explorer confirmation preparation failed."
+        }
+
+        $costArguments["confirmation"] = $costPreview.confirmation.token
+        $costExecuted = Invoke-DirectMcp `
+            -Method "tools/call" `
+            -Params @{
+                name = "consultar_costes_aws"
+                arguments = $costArguments
+            } `
+            -Name "consultar_costes_aws"
+        $costResult = $costExecuted.result.structuredContent
+        if (
+            $costResult.status -ne "ok" -or
+            $costResult.data.read_only -ne $true -or
+            $costResult.data.max_cost_usd -ne "0.01" -or
+            $costResult.data.monthly_request_limit -ne 3 -or
+            $costResult.data.monthly_max_api_cost_usd -ne "0.03" -or
+            $costResult.data.returned_periods -gt 1 -or
+            $costResult.data.returned_groups -lt 1 -or
+            $costResult.data.returned_groups -gt 100 -or
+            $costResult.counters.sdk_requests -ne 1 -or
+            $costResult.counters.external_writes_attempted -ne 0 -or
+            $costResult.counters.external_writes_succeeded -ne 0
+        ) {
+            throw "Confirmed Cost Explorer query contract failed."
+        }
+        $validation["cost_explorer"] = `
+            "ok; 1 paid read; max USD 0.01; monthly cap USD 0.03; no writes"
+    }
 
     if ($ValidateExternalWrites) {
         if (-not $externalIntegrationsEnabled) {
