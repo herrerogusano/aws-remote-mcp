@@ -73,16 +73,26 @@ one month. Failed downstream attempts consume a slot, and unavailable quota
 state fails closed before AWS.
 
 The template adds no Cost Explorer resource or account-level activation. Its
-conditional IAM statement contains only `ce:GetCostAndUsage` on the exact
-primary billing-view ARN and reuses the on-demand confirmation table.
+conditional IAM statement contains only `ce:GetCostAndUsage`. AWS evaluated the
+first closed DEV request against its service-operation ARN instead of the
+request's primary billing-view ARN, so that single action requires
+`Resource: "*"`; the adapter still fixes `BillingViewArn` to the exact primary
+view. The implementation reuses the on-demand confirmation table.
 
 On 2026-09-16 a reviewed non-replacing change set deployed the opt-in to DEV.
 Processed-template comparison showed real changes only to the MCP Lambda, its
 execution role and the existing confirmation table. Post-deployment reads
 confirmed `UPDATE_COMPLETE`, API disablement, reserved concurrency zero, the
 single exact Cost Explorer action, the primary-view environment binding, one
-read/two write table maximums, and zero alarms or schedules. The first paid
-query remains a separate reviewed gate.
+read/two write table maximums, and zero alarms or schedules.
+
+The first confirmed query on 2026-09-16 made exactly one SDK request and AWS
+rejected it before returning cost data because the role scoped that action to
+the billing-view ARN while AWS authorized it against the service-operation ARN.
+The failed request consumed one of the three September quota slots and can cost
+at most `$0.01`. Cleanup restored API disablement and reserved concurrency zero,
+with no remaining alarm or schedule. The IAM correction keeps the action list
+unchanged and broadens only that action's resource element.
 
 ## Current state
 

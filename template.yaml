@@ -148,7 +148,7 @@ Resources:
                 - Sid: ReadPrimaryBillingViewCostAndUsage
                   Effect: Allow
                   Action: ce:GetCostAndUsage
-                  Resource: !Sub "arn:${AWS::Partition}:billing::${AWS::AccountId}:billingview/primary"
+                  Resource: "*"
                 - !Ref AWS::NoValue
               - !If
                 - PersistentConfirmationEnabled
