@@ -283,8 +283,25 @@ try {
         } `
         -Name "buscar_recursos_aws"
     $resourceSearchContent = $resourceSearch.result.structuredContent
+    $resourceSearchWarningCodes = @(
+        $resourceSearchContent.warnings | ForEach-Object { $_.code }
+    )
+    $unexpectedSearchWarnings = @(
+        $resourceSearchWarningCodes | Where-Object {
+            $_ -ne "resource_explorer_invalid_resources"
+        }
+    )
     if (
-        $resourceSearchContent.status -ne "ok" -or
+        @("ok", "partial") -notcontains $resourceSearchContent.status -or
+        (
+            $resourceSearchContent.status -eq "ok" -and
+            $resourceSearchWarningCodes.Count -ne 0
+        ) -or
+        (
+            $resourceSearchContent.status -eq "partial" -and
+            $resourceSearchWarningCodes.Count -eq 0
+        ) -or
+        $unexpectedSearchWarnings.Count -gt 0 -or
         $resourceSearchContent.data.read_only -ne $true -or
         $resourceSearchContent.data.region -ne "eu-west-1" -or
         $resourceSearchContent.data.returned -lt 1 -or
@@ -295,7 +312,8 @@ try {
     ) {
         throw "Bounded Resource Explorer search contract failed."
     }
-    $validation["resource_explorer"] = "ok; 1 read; max 5 resources; no writes"
+    $validation["resource_explorer"] = `
+        "$($resourceSearchContent.status); 1 read; max 5 resources; no writes"
 
     if ($ValidateCostExplorer) {
         if (-not $costExplorerEnabled) {

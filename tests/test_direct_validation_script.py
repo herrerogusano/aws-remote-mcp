@@ -43,3 +43,9 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     assert "$resourceSearchContent.data.returned -gt 5" in script
     assert "$resourceSearchContent.counters.sdk_requests -ne 1" in script
     assert "$resourceSearchContent.counters.external_writes_attempted -ne 0" in script
+    assert '@("ok", "partial") -notcontains $resourceSearchContent.status' in script
+    assert '$resourceSearchContent.status -eq "ok" -and' in script
+    assert "$resourceSearchWarningCodes.Count -ne 0" in script
+    assert '$resourceSearchContent.status -eq "partial" -and' in script
+    assert "$resourceSearchWarningCodes.Count -eq 0" in script
+    assert '$_ -ne "resource_explorer_invalid_resources"' in script
