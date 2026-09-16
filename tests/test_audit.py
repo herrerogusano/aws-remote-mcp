@@ -1,5 +1,7 @@
 """Structured audit records expose only an explicit safe schema."""
 
+from typing import Any, cast
+
 import pytest
 
 from aws_remote_mcp.core.audit import build_tool_audit_record
@@ -89,6 +91,43 @@ def test_resource_explorer_audit_uses_only_allowlisted_metadata_and_counters() -
     assert query not in str(record)
     assert account_id not in str(record)
     assert raw_arn not in str(record)
+
+
+def test_cost_explorer_audit_omits_query_results_view_arn_and_confirmation() -> None:
+    query = "2026-01-01/2026-01-02"
+    account_id = "123456789012"
+    view_arn = f"arn:aws:billing::{account_id}:billingview/primary"
+    token = "opaque-confirmation-token"
+    result = ToolResult(
+        status="ok",
+        data={
+            "results_by_time": [{"total_usd": "0.01", "groups": [{"key": account_id}]}],
+            "billing_view_arn": view_arn,
+        },
+        counters=OperationCounters(sdk_requests=1, resources=1),
+        confirmation=ConfirmationMetadata(
+            token=token,
+            action="aws.cost_explorer.get_cost_and_usage",
+            payload_digest="digest",
+            expires_at="2026-09-16T17:00:00+00:00",
+        ),
+    )
+
+    record = build_tool_audit_record(
+        tool="consultar_costes_aws",
+        result=result,
+        caller=CallerContext("https://issuer.example", "caller-1"),
+        environment="dev",
+        request_id="cost-request-1",
+    )
+
+    assert record["tool"] == "consultar_costes_aws"
+    counters = cast("dict[str, Any]", record["counters"])
+    assert counters["sdk_requests"] == 1
+    assert query not in str(record)
+    assert account_id not in str(record)
+    assert view_arn not in str(record)
+    assert token not in str(record)
 
 
 @pytest.mark.parametrize(

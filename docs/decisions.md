@@ -263,8 +263,8 @@ record contains only a token digest, caller fingerprint, action, payload digest,
 expiry and consumed flag. Keep consumed records until TTL cleanup so replays can
 be distinguished, and check expiry in the condition because TTL deletion is
 asynchronous. Configure on-demand billing with maximum read and write throughput
-of one request unit per second, and create the table only when the external
-integration profile is explicitly enabled.
+of one read and two write request units per second, and create the table only
+when external integrations or the Cost Explorer quota are explicitly enabled.
 
 Store Telegram and Trello configuration together in one Parameter Store Standard
 SecureString encrypted by the AWS-managed `aws/ssm` key. Fetch it only after
@@ -393,3 +393,28 @@ the minimum operation permission, though AWS's troubleshooting guide also names
 `GetView`; keep `GetView` absent until a separately approved closed DEV
 validation demonstrates it is necessary, then scope any required permission to
 the same exact view.
+
+## D-033 - Cost Explorer as a separately confirmed paid read
+
+Expose Cost Explorer only when `EnableCostExplorer=true`; default it to false
+for DEV and PROD. When false, hide the MCP tools, omit the API permission and
+make no Cost Explorer call. When true, grant only `ce:GetCostAndUsage` on the
+account's exact primary billing view ARN and pass that same ARN in the request.
+Do not grant Cost Explorer wildcard or additional billing actions. The account-
+level service activation remains outside this template and must never be
+performed automatically.
+
+Each confirmed execution is single-use and may issue at most one SDK request for
+one result page, with retries and pagination disabled. Each page costs $0.01.
+Before the API call, atomically consume one of three global UTC-month slots in
+the confirmation table; failures consume their slot, exhausted or unavailable
+quota fails closed, and no caller can reset it. This limits Cost Explorer calls
+originating from this MCP to $0.03 per month while the table remains intact.
+Current-month data is delayed, typically by about a day, so the tool is not a
+real-time spend monitor or an AWS-account-wide hard budget cap.
+
+Use the existing confirmation table when either external integrations or Cost
+Explorer is enabled, without enabling Telegram or Trello when only Cost
+Explorer is on. If both features are later disabled, the conditional table is
+deleted with the application stack; no Cost Explorer service resource is
+created by the template. Cost Explorer remains false in PROD.

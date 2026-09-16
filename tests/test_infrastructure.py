@@ -97,6 +97,28 @@ def test_resource_explorer_is_opt_in_and_scoped_to_one_search_view() -> None:
         assert forbidden not in template
 
 
+def test_cost_explorer_is_opt_in_and_scoped_to_primary_billing_view() -> None:
+    template = template_text()
+    primary_arn = "".join(
+        (
+            "arn:${AWS::Partition}:billing::${AWS::AccountId}:",
+            "billingview/primary",
+        )
+    )
+
+    assert 'EnableCostExplorer:\n    Type: String\n    Default: "false"' in template
+    assert 'CostExplorerEnabled: !Equals [!Ref EnableCostExplorer, "true"]' in template
+    assert "Action: ce:GetCostAndUsage" in template
+    assert f'Resource: !Sub "{primary_arn}"' in template
+    assert "COST_EXPLORER_ENABLED: !Ref EnableCostExplorer" in template
+    assert (
+        "COST_EXPLORER_BILLING_VIEW_ARN: !If\n"
+        "            - CostExplorerEnabled\n"
+        f'            - !Sub "{primary_arn}"\n'
+        '            - ""'
+    ) in template
+
+
 def test_template_has_no_expensive_network_or_compute_extras() -> None:
     template = template_text()
 
@@ -116,10 +138,10 @@ def test_confirmation_table_is_off_by_default_and_cost_bounded() -> None:
 
     assert 'Default: "false"' in template
     assert "Type: AWS::DynamoDB::Table" in template
-    assert "Condition: ExternalIntegrationsEnabled" in template
+    assert "Condition: PersistentConfirmationEnabled" in template
     assert "BillingMode: PAY_PER_REQUEST" in template
     assert "MaxReadRequestUnits: 1" in template
-    assert "MaxWriteRequestUnits: 1" in template
+    assert "MaxWriteRequestUnits: 2" in template
     assert "AttributeName: expires_at" in template
     assert "PointInTimeRecoveryEnabled: false" in template
     assert "DeletionPolicy: Delete" in template

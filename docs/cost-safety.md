@@ -59,6 +59,35 @@ does not create or enable Resource Explorer, indexes, views, or other persistent
 infrastructure. The Lambda role receives only `Search` on that exact existing
 view, so no setup or indexing permissions are added.
 
+## Cost Explorer opt-in
+
+Cost Explorer is disabled by default. `EnableCostExplorer=false` hides its tools,
+omits Cost Explorer IAM, and does not activate or configure the AWS service. If
+separately approved and enabled, the role gets only `ce:GetCostAndUsage` on the
+account's `primary` billing view ARN; the Lambda receives that same value as
+`COST_EXPLORER_BILLING_VIEW_ARN`. A single-use confirmation gates each execution.
+The runtime contract is exactly one SDK request, one result page, no
+pagination and no automatic retry; a `NextPageToken` is not followed. The
+confirmation itself is not a Cost Explorer API request; each API request (each
+page in a paginated query) costs $0.01.
+
+Before the billable call, DynamoDB atomically consumes one of three global slots
+for the current UTC month. A failed downstream attempt still consumes its slot;
+the fourth attempt, missing quota state or a DynamoDB error fails closed before
+AWS. This caps Cost Explorer API requests initiated by this MCP at `$0.03` per
+month while the table remains intact. It does not cap unrelated AWS credentials,
+administrator actions or other services. No Cost Explorer call is made during
+template validation, deployment, or the ordinary closed-stack procedure. The
+current PROD profile must keep `EnableCostExplorer=false`.
+
+Cost Explorer data is delayed rather than live. AWS says current-month data is
+typically available after about 24 hours, with historical and forecast data
+taking longer; upstream billing changes can arrive later. Do not present this
+tool as a real-time spend monitor or a way to enforce a budget. AWS also states
+that Cost Explorer cannot be disabled after account-level activation. Any such
+activation is a separate account-level decision and is not performed by this
+project's template or runtime.
+
 ## Cost envelopes
 
 The deployed controls produce three materially different envelopes:
@@ -80,14 +109,14 @@ bound look smaller. Free-tier allowances are also excluded from the estimate.
 The stage rate and burst targets are throttling controls, not contractual hard
 quotas: AWS documents that throttling is best effort. The independent five-minute
 shutdown and Lambda's ten-second timeout therefore remain the stronger time and
-per-execution limits. Likewise, the DynamoDB one-read/one-write maximums are
+per-execution limits. Likewise, the DynamoDB one-read/two-write maximums are
 cost-control targets and may briefly admit burst capacity. Even if each of the
-roughly 300 admitted calls used one read and one write, that request volume is
+roughly 300 admitted calls used one read and two writes, that request volume is
 far below one cent at public per-million request pricing.
 
 The optional external-integration profile is off by default. When enabled it
 uses one DynamoDB on-demand table for confirmation state, with table maximums of
-one read request unit and one write request unit per second, no indexes, no
+one read request unit and two write request units per second, no indexes, no
 streams and no point-in-time recovery. DynamoDB documents these maximums as
 cost-control targets rather than absolute ceilings because burst capacity can
 temporarily exceed them. Confirmation records expire after five minutes and TTL
@@ -118,9 +147,11 @@ generate request/compute charges while idle.
 - AWS WAF and custom domains add fixed monthly cost and are unnecessary while the
   endpoint is disabled outside a five-minute signed test.
 - Provisioned concurrency, VPC and NAT are prohibited because they add idle cost.
-- The Cost Explorer API is not called by scripts or runtime controls: each primary
-  billing-view request costs $0.01 and current-month data can be delayed by about
-  24 hours. Existing AWS Budget email notifications provide the account warning.
+- Cost Explorer remains disabled by default and is excluded from deployment and
+  validation scripts. If explicitly enabled, enforce a single-use confirmation,
+  one request and one page per execution at $0.01, plus three global attempts
+  per UTC month. Do not imply that this application quota or the AWS Budget
+  email alert guarantees a maximum total AWS bill.
 - Resource Explorer is never turned on or configured by the stack. Search stays
   disabled unless an existing `eu-west-1` view ARN is explicitly approved and
   supplied; PROD keeps the value empty.
@@ -131,6 +162,10 @@ generate request/compute charges while idle.
 - https://docs.aws.amazon.com/lambda/latest/dg/lambda-concurrency.html
 - https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html
 - https://aws.amazon.com/aws-cost-management/aws-cost-explorer/pricing/
+- https://docs.aws.amazon.com/cost-management/latest/userguide/ce-what-is.html
+- https://docs.aws.amazon.com/cost-management/latest/userguide/bcm-lite-cost-explorer.html
+- https://docs.aws.amazon.com/service-authorization/latest/reference/list_ce.html
+- https://docs.aws.amazon.com/cli/latest/reference/ce/get-cost-and-usage.html
 - https://aws.amazon.com/api-gateway/pricing/
 - https://aws.amazon.com/lambda/pricing/
 - https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html

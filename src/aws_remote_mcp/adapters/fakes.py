@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 
 from aws_remote_mcp.adapters.protocols import AdapterError, AwsAdapterResult
+from aws_remote_mcp.core.cost_query import CostExplorerQuery
 from aws_remote_mcp.core.models import JsonValue
 
 
@@ -25,6 +26,32 @@ class FakeAwsAdapter:
                 data={"operation": operation}, sdk_requests=0, resources=0
             ),
         )
+
+
+@dataclass(slots=True)
+class FakeAwsCostExplorerAdapter:
+    """Deterministic Cost Explorer port for offline confirmation tests."""
+
+    billing_view_arn: str = "arn:aws:billing::123456789012:billingview/primary"
+    response: AwsAdapterResult = field(
+        default_factory=lambda: AwsAdapterResult(
+            data={
+                "region": "us-east-1",
+                "read_only": True,
+                "results_by_time": [],
+            },
+            sdk_requests=1,
+            resources=0,
+        )
+    )
+    failure: AdapterError | None = None
+    calls: list[CostExplorerQuery] = field(default_factory=list)
+
+    def get_cost_and_usage(self, query: CostExplorerQuery) -> AwsAdapterResult:
+        self.calls.append(query)
+        if self.failure is not None:
+            raise self.failure
+        return self.response
 
 
 @dataclass(slots=True)

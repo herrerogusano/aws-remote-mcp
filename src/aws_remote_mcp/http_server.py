@@ -21,11 +21,16 @@ from aws_remote_mcp.adapters.fakes import (
 from aws_remote_mcp.adapters.protocols import (
     AwsAdapter,
     AwsAdapterResult,
+    CostExplorerAdapter,
     TelegramAdapter,
     TrelloAdapter,
 )
 from aws_remote_mcp.core.audit import build_tool_audit_record
 from aws_remote_mcp.core.confirmation import ConfirmationGuard, ConfirmationProvider
+from aws_remote_mcp.core.cost_quota import (
+    CostRequestLimiter,
+    InMemoryCostRequestLimiter,
+)
 from aws_remote_mcp.core.models import CallerContext, ToolIssue, ToolResult
 from aws_remote_mcp.core.operations import build_default_registry
 from aws_remote_mcp.security.authorization import (
@@ -86,6 +91,8 @@ def build_tool_service(
     *,
     environment: str = "local",
     aws_adapter: AwsAdapter | None = None,
+    aws_cost_explorer_adapter: CostExplorerAdapter | None = None,
+    cost_request_limiter: CostRequestLimiter | None = None,
     confirmations: ConfirmationProvider | None = None,
     telegram_adapter: TelegramAdapter | None = None,
     trello_adapter: TrelloAdapter | None = None,
@@ -128,10 +135,19 @@ def build_tool_service(
             )
         }
     )
+    local_limiter = (
+        InMemoryCostRequestLimiter()
+        if environment == "local"
+        and aws_cost_explorer_adapter is not None
+        and cost_request_limiter is None
+        else cost_request_limiter
+    )
     return ToolService(
         operations=build_default_registry(),
         confirmations=confirmations or ConfirmationGuard(),
         aws=aws,
+        aws_cost_explorer=aws_cost_explorer_adapter,
+        cost_request_limiter=local_limiter,
         telegram=telegram_adapter or FakeTelegramAdapter(),
         trello=trello_adapter or FakeTrelloAdapter(),
         telegram_destinations=telegram_destinations,
@@ -147,7 +163,10 @@ def create_server(
     environment: str = "local",
     include_previews: bool = True,
     include_external_writes: bool = False,
+    include_cost_explorer: bool = False,
     aws_adapter: AwsAdapter | None = None,
+    aws_cost_explorer_adapter: CostExplorerAdapter | None = None,
+    cost_request_limiter: CostRequestLimiter | None = None,
     confirmations: ConfirmationProvider | None = None,
     telegram_adapter: TelegramAdapter | None = None,
     trello_adapter: TrelloAdapter | None = None,
@@ -166,8 +185,10 @@ def create_server(
         description="Authenticated, cost-aware AWS remote MCP server.",
         instructions=(
             "AWS inventory and Resource Explorer search are read-only and "
-            "bounded; external writes require an exact, expiring, single-use "
-            "confirmation."
+            "bounded; Cost Explorer queries require explicit single-use "
+            "confirmation, one USD 0.01 request, and a global three-request "
+            "UTC-month limit; external writes require an exact, expiring, "
+            "single-use confirmation."
         ),
         auth=auth_settings,
         token_verifier=token_verifier,
@@ -175,6 +196,8 @@ def create_server(
     tools = build_tool_service(
         environment=environment,
         aws_adapter=aws_adapter,
+        aws_cost_explorer_adapter=aws_cost_explorer_adapter,
+        cost_request_limiter=cost_request_limiter,
         confirmations=confirmations,
         telegram_adapter=telegram_adapter,
         trello_adapter=trello_adapter,
@@ -233,6 +256,44 @@ def create_server(
             "aws.resource_explorer.search", {"query": query, "limit": limit}
         )
         return audited_result("buscar_recursos_aws", result)
+
+    if include_cost_explorer:
+
+        @server.tool(name="preparar_consulta_costes_aws", structured_output=True)
+        def prepare_aws_cost_query(
+            start_date: str,
+            end_date: str,
+            granularity: str,
+            group_by: str,
+        ) -> dict[str, Any]:
+            """Preview one bounded Cost Explorer request and issue confirmation."""
+
+            caller = caller_provider()
+            result = tools.prepare_aws_cost_query(
+                caller, start_date, end_date, granularity, group_by
+            )
+            return audited_result("preparar_consulta_costes_aws", result, caller)
+
+        @server.tool(name="consultar_costes_aws", structured_output=True)
+        def execute_aws_cost_query(
+            confirmation: str,
+            start_date: str,
+            end_date: str,
+            granularity: str,
+            group_by: str,
+        ) -> dict[str, Any]:
+            """Consume confirmation before one Cost Explorer API request."""
+
+            caller = caller_provider()
+            result = tools.execute_aws_cost_query(
+                caller,
+                confirmation,
+                start_date,
+                end_date,
+                granularity,
+                group_by,
+            )
+            return audited_result("consultar_costes_aws", result, caller)
 
     if include_previews and include_external_writes:
 
@@ -338,7 +399,10 @@ def create_app(
     environment: str = "local",
     include_previews: bool = True,
     include_external_writes: bool = False,
+    include_cost_explorer: bool = False,
     aws_adapter: AwsAdapter | None = None,
+    aws_cost_explorer_adapter: CostExplorerAdapter | None = None,
+    cost_request_limiter: CostRequestLimiter | None = None,
     confirmations: ConfirmationProvider | None = None,
     telegram_adapter: TelegramAdapter | None = None,
     trello_adapter: TrelloAdapter | None = None,
@@ -356,7 +420,10 @@ def create_app(
         environment=environment,
         include_previews=include_previews,
         include_external_writes=include_external_writes,
+        include_cost_explorer=include_cost_explorer,
         aws_adapter=aws_adapter,
+        aws_cost_explorer_adapter=aws_cost_explorer_adapter,
+        cost_request_limiter=cost_request_limiter,
         confirmations=confirmations,
         telegram_adapter=telegram_adapter,
         trello_adapter=trello_adapter,
@@ -409,8 +476,11 @@ def create_gateway_app(
     allowed_hosts: tuple[str, ...],
     environment: str,
     aws_adapter: AwsAdapter,
+    aws_cost_explorer_adapter: CostExplorerAdapter | None = None,
+    cost_request_limiter: CostRequestLimiter | None = None,
     caller_provider: Callable[[], CallerContext] = lambda: LOCAL_CALLER,
     include_external_writes: bool = False,
+    include_cost_explorer: bool = False,
     confirmations: ConfirmationProvider | None = None,
     telegram_adapter: TelegramAdapter | None = None,
     trello_adapter: TrelloAdapter | None = None,
@@ -432,7 +502,10 @@ def create_gateway_app(
         caller_provider=caller_provider,
         include_previews=include_external_writes,
         include_external_writes=include_external_writes,
+        include_cost_explorer=include_cost_explorer,
         aws_adapter=aws_adapter,
+        aws_cost_explorer_adapter=aws_cost_explorer_adapter,
+        cost_request_limiter=cost_request_limiter,
         confirmations=confirmations,
         telegram_adapter=telegram_adapter,
         trello_adapter=trello_adapter,
