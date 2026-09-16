@@ -30,14 +30,27 @@ and closed.
 
 ## Resource Explorer increment
 
-The next read-only increment is implemented and verified offline but is not
-deployed. It adds `buscar_recursos_aws` over one pre-existing Resource Explorer
+The Resource Explorer read-only increment is implemented, merged and deployed
+to closed DEV. It adds `buscar_recursos_aws` over one dedicated Resource Explorer
 view, with a restricted positive query grammar, one request, no pagination,
 at most 50 sanitized resources and no account IDs, full ARNs, properties or
-tags in results or audit records. The CloudFormation parameter is empty by
-default, so both the environment configuration and exact-view IAM grant remain
-disabled until a separate DEV setup and deployment review. Cost Explorer is not
-part of this increment.
+tags in results or audit records. The template default remains empty, so PROD
+and new deployments do not receive the capability implicitly.
+
+On 2026-09-16 a local `eu-west-1` index was created and promoted to the account's
+aggregator. A dedicated unfiltered DEV view was created without included tag
+properties or default-view association. It aggregates only regions with an
+existing local index; other regions remain outside its complete coverage. A
+reviewed non-replacing change set added the exact-view `Search` permission and
+Lambda environment value while the API and compute stayed closed.
+
+Closed-API direct Lambda validation then discovered the new tool and returned
+five bounded Lambda matches through one SDK read, with no warnings, errors or
+external-write attempts. This proved that `Search` alone is sufficient for the
+runtime; `GetView` was not added. The structured CloudWatch record contained one
+SDK request, five resources and zero writes without arguments or result data.
+Cleanup confirmed API disablement, Lambda concurrency zero, no alarm and no
+schedule. Cost Explorer is not part of this increment.
 
 ## Current state
 
