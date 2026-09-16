@@ -54,11 +54,12 @@ schedule. Cost Explorer is not part of this increment.
 
 ## Cost Explorer increment
 
-The Cost Explorer capability is implemented and verified offline but has not
-been deployed or called. It is hidden unless `EnableCostExplorer=true`; the
-default and PROD value remain false. Preparation validates an explicit date
-range of at most 31 days, `DAILY` or `MONTHLY` granularity, and one `SERVICE` or
-`REGION` grouping without making a Cost Explorer request.
+The Cost Explorer capability is implemented, verified offline and deployed to
+closed DEV; it has not been called. It is hidden unless
+`EnableCostExplorer=true`; the template default and PROD value remain false.
+Preparation validates an explicit date range of at most 31 days, `DAILY` or
+`MONTHLY` granularity, and one `SERVICE` or `REGION` grouping without making a
+Cost Explorer request.
 
 Execution requires the exact five-minute, caller-bound, single-use confirmation
 and consumes it before one `GetCostAndUsage` request. The adapter uses the
@@ -73,8 +74,15 @@ state fails closed before AWS.
 
 The template adds no Cost Explorer resource or account-level activation. Its
 conditional IAM statement contains only `ce:GetCostAndUsage` on the exact
-primary billing-view ARN and reuses the on-demand confirmation table. A live
-DEV deployment and the first paid query remain a separate reviewed gate.
+primary billing-view ARN and reuses the on-demand confirmation table.
+
+On 2026-09-16 a reviewed non-replacing change set deployed the opt-in to DEV.
+Processed-template comparison showed real changes only to the MCP Lambda, its
+execution role and the existing confirmation table. Post-deployment reads
+confirmed `UPDATE_COMPLETE`, API disablement, reserved concurrency zero, the
+single exact Cost Explorer action, the primary-view environment binding, one
+read/two write table maximums, and zero alarms or schedules. The first paid
+query remains a separate reviewed gate.
 
 ## Current state
 
