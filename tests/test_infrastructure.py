@@ -76,6 +76,27 @@ def test_template_iam_is_exact_and_external_access_is_conditional() -> None:
     assert "ReadOnlyAccess" not in template
 
 
+def test_resource_explorer_is_opt_in_and_scoped_to_one_search_view() -> None:
+    template = template_text()
+
+    assert "ResourceExplorerViewArn:" in template
+    assert 'Default: ""' in template
+    assert "ResourceExplorerViewConfigured:" in template
+    assert "Action: resource-explorer-2:Search" in template
+    assert "Resource: !Ref ResourceExplorerViewArn" in template
+    assert "resource-explorer-2:Operation: Search" in template
+    assert "RESOURCE_EXPLORER_VIEW_ARN: !Ref ResourceExplorerViewArn" in template
+    for forbidden in (
+        "resource-explorer-2:CreateIndex",
+        "resource-explorer-2:CreateView",
+        "resource-explorer-2:GetView",
+        "resource-explorer-2:ListViews",
+        "AWSResourceExplorerFullAccess",
+        "iam:CreateServiceLinkedRole",
+    ):
+        assert forbidden not in template
+
+
 def test_template_has_no_expensive_network_or_compute_extras() -> None:
     template = template_text()
 

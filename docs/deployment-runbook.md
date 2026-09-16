@@ -18,14 +18,20 @@ sam build --template-file template.yaml `
 ```
 
 The template accepts only `Environment=dev`. It needs no secrets and adds only
-the two inventory reads documented in `docs/aws-inventory.md`; it exposes no
-external write tools. The Cognito stack must already exist because its exact
+the base inventory reads documented in `docs/aws-inventory.md`; Resource
+Explorer is separately disabled unless an exact, pre-existing view ARN is
+explicitly supplied. The Cognito stack must already exist because its exact
 issuer and the existing API identifier are deployment inputs.
 
 Before deployment, inspect `.aws-sam/build-current/template.yaml` and require the
-`$default` stage, all three expected routes, `McpRequiredScope` and the two exact
-inventory IAM statements. Always name this fresh generated template explicitly;
-an implicit `sam deploy` can reuse a stale `.aws-sam/build/template.yaml`.
+`$default` stage, all three expected routes, `McpRequiredScope` and the two base
+inventory IAM statements. With `ResourceExplorerViewArn` empty, verify that the
+generated policy omits Resource Explorer permissions. If it is explicitly
+configured, require exactly one additional `resource-explorer-2:Search` action
+on that exact view ARN, constrained to `eu-west-1` and
+`resource-explorer-2:Operation=Search`. Always name this fresh generated template
+explicitly; an implicit `sam deploy` can reuse a stale
+`.aws-sam/build/template.yaml`.
 
 ## Inventory IAM/deployment gate
 
@@ -38,6 +44,14 @@ The inventory closed deployment changes the MCP execution role. It adds only:
 It adds no resource, route, secret, write permission or persistent-cost service.
 The API and Lambda remain disabled during deployment. This role change still
 requires explicit approval before running the command below.
+
+The default keeps `ResourceExplorerViewArn` empty, so no Resource Explorer
+permission is included. To opt in, a separate explicit IAM/deployment review
+must provide the exact ARN of a view that already exists in `eu-west-1`.
+This project does not enable Resource Explorer or create an index, view,
+service-linked role, or other AWS resource. Never use `AWSResourceExplorerFullAccess`
+or a managed read-only policy. Until that opt-in is separately approved, keep
+the parameter empty in DEV and PROD.
 
 ## Approved closed deployment
 
@@ -69,6 +83,7 @@ sam deploy `
     OAuthAuthorizationServer=$authorizationServer `
     McpTokenAudience=$audience `
     McpRequiredScope=$requiredScope `
+    "ResourceExplorerViewArn=" `
   --no-confirm-changeset `
   --no-fail-on-empty-changeset
 ```
@@ -137,6 +152,11 @@ checks the stored token contract and remaining validity, and requires fewer than
 traffic within the same 15-request tripwire; the deadline is never extended.
 Other failures and failed recovery close immediately. Tool calls are not retried.
 
+This existing validation wrapper covers the original two-service inventory
+only. Do not call the separate Resource Explorer tool through this procedure;
+its IAM opt-in and closed-state behavior need their own explicit deployment and
+validation review first.
+
 ## API-closed Lambda validation
 
 If the account quota cannot allocate reserved concurrency one, do not weaken
@@ -164,8 +184,9 @@ decision.
 - an idle safety-shutdown Lambda and logs;
 - a safety SNS topic and exact topic policy;
 - a dedicated Scheduler group for isolated one-time shutdown schedules;
-- three least-privilege IAM roles: MCP execution with two inventory reads,
-  shutdown execution, scheduler;
+- three least-privilege IAM roles: MCP execution with two base inventory reads
+  and, only when explicitly configured, one view-scoped Resource Explorer
+  search; shutdown execution; scheduler;
 - deployment artifacts in the existing SAM-managed regional S3 bucket.
 
 Only during a validation window, one auto-deleting Scheduler schedule and one
@@ -183,4 +204,6 @@ sam delete --stack-name aws-remote-mcp-dev --region eu-west-1
 ```
 
 The stack owns no business data. Its three log groups are deleted with the stack;
-the shared SAM artifact bucket is retained.
+the shared SAM artifact bucket is retained. A separately managed Resource
+Explorer view or index is outside this stack and is neither modified nor
+deleted by its rollback or removal.

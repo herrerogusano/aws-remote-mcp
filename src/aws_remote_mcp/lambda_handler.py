@@ -179,7 +179,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         authorization=authorization,
         allowed_hosts=(allowed_host,),
         environment=environment,
-        aws_adapter=AwsInventoryAdapter(region=_required_environment("AWS_REGION")),
+        aws_adapter=AwsInventoryAdapter(
+            region=_required_environment("AWS_REGION"),
+            resource_explorer_view_arn=(
+                os.environ.get("RESOURCE_EXPLORER_VIEW_ARN", "").strip() or None
+            ),
+        ),
         caller_provider=lambda: caller,
         include_external_writes=external_enabled,
         confirmations=confirmations,

@@ -18,8 +18,26 @@ metadata passed the local capability preflight. The profile was then deployed to
 DEV through a reviewed non-replacing CloudFormation change set. The deployment
 completed `UPDATE_COMPLETE`; subsequent reads confirmed the API disabled,
 Lambda concurrency zero, WorkOS issuer, exact resource audience, `openid` scope,
-and zero alarms or schedules. No OAuth login or MCP call has occurred yet. PROD
-remains unchanged and closed. The next gate is one bounded live client test.
+and zero alarms or schedules.
+
+On 2026-09-16 Codex registered through the WorkOS CIMD/DCR-compatible flow,
+completed OAuth and discovered the remote tools. A bounded DEV window then ran
+`diagnostico` and `listar_inventario_aws`: both returned `ok`; the inventory used
+two SDK reads, returned 13 resources and attempted zero external writes. Telegram
+and Trello were not called. DEV was closed immediately afterward and the audit
+confirmed the API disabled and Lambda concurrency zero. PROD remains unchanged
+and closed.
+
+## Resource Explorer increment
+
+The next read-only increment is implemented and verified offline but is not
+deployed. It adds `buscar_recursos_aws` over one pre-existing Resource Explorer
+view, with a restricted positive query grammar, one request, no pagination,
+at most 50 sanitized resources and no account IDs, full ARNs, properties or
+tags in results or audit records. The CloudFormation parameter is empty by
+default, so both the environment configuration and exact-view IAM grant remain
+disabled until a separate DEV setup and deployment review. Cost Explorer is not
+part of this increment.
 
 ## Current state
 

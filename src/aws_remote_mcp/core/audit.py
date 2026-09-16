@@ -11,6 +11,7 @@ AUDITED_TOOLS = frozenset(
     {
         "diagnostico",
         "listar_inventario_aws",
+        "buscar_recursos_aws",
         "preparar_mensaje_telegram",
         "enviar_mensaje_telegram",
         "preparar_tarjeta_trello",

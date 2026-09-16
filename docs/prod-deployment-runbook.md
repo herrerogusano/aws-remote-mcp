@@ -39,10 +39,12 @@ Both application deployments must explicitly use:
 Environment=prod
 EnableExternalIntegrations=false
 IntegrationConfigParameterName=/portfolio/aws-remote-mcp/prod/integrations
+ResourceExplorerViewArn=<empty>
 ```
 
-Use a unique PROD Cognito domain prefix. Do not create a PROD user, enable TOTP
-enrollment, create the provider parameter or reuse DEV credentials.
+Use a unique PROD Cognito domain prefix. Keep `ResourceExplorerViewArn` empty;
+do not create a PROD user, enable TOTP enrollment, create the provider
+parameter or reuse DEV credentials.
 
 ## Required verification
 

@@ -367,3 +367,29 @@ metadata before opening, then test Claude, Cursor and Codex-compatible clients i
 separate five-minute windows with the existing concurrency, throttling, request
 alarm and automatic shutdown controls. PROD remains unchanged until those tests
 pass and an always-on cost posture is separately reviewed.
+
+## D-032 - Opt-in Resource Explorer search through an existing view
+
+Support Resource Explorer as a separate read-only search source, not as part of
+the fixed Lambda/API Gateway inventory operation. Keep it disabled when the
+`ResourceExplorerViewArn` deployment parameter is empty. Enabling it requires
+the exact ARN of a pre-existing view in `eu-west-1`; callers cannot choose a
+view or region.
+
+Grant only `resource-explorer-2:Search` on that exact view ARN and constrain the
+request to `eu-west-1` and `resource-explorer-2:Operation=Search` (the IAM action
+also maps to the separate `ListResources` API operation). Do not create
+indexes, views or service-linked roles, grant Resource Explorer managed
+policies, or activate/configure the service as part of this project. Resource
+Explorer has no additional search charge; the
+existing API Gateway and Lambda invocation costs and closed-by-default controls
+remain unchanged. Cost Explorer remains excluded.
+
+Treat search results as eventually consistent and incomplete: coverage depends
+on supported resource types, the selected view's filters and pre-existing
+index/aggregator configuration. Do not present Resource Explorer as a universal
+or authoritative account inventory. The Search API reference lists `Search` as
+the minimum operation permission, though AWS's troubleshooting guide also names
+`GetView`; keep `GetView` absent until a separately approved closed DEV
+validation demonstrates it is necessary, then scope any required permission to
+the same exact view.

@@ -50,17 +50,21 @@ MCP client
   validation-window cost review.
 - Reviewed manual promotion to `main` and an isolated, empty PROD deployment
   with independent Cognito authorization and both execution gates closed.
+- WorkOS AuthKit onboarding from Codex through CIMD, PKCE and OAuth, followed by
+  successful remote diagnostics and bounded AWS inventory with zero writes.
+- Opt-in Resource Explorer search implemented offline with one-page bounds,
+  sanitized identifiers and an exact-view least-privilege IAM contract.
 
 ## Next milestones
 
-The server and controlled-client validation are complete. The current portfolio
-goal is zero-configuration onboarding from multiple MCP clients:
+The server and Codex client validation are complete. The next portfolio steps
+remain deliberately gated:
 
-1. Configure a free WorkOS AuthKit staging environment with CIMD, DCR and the
-   exact DEV resource indicator.
-2. Deploy the provider-neutral JWT configuration to closed DEV.
-3. Validate discovery, login, consent and read-only tools independently from
-   Claude, Cursor and Codex-compatible clients.
+1. Configure one pre-existing Resource Explorer view and validate the new search
+   in closed DEV before considering deployment to PROD.
+2. Add a separately confirmed, single-page Cost Explorer query with its explicit
+   `$0.01` API cost only after Resource Explorer validation.
+3. Optionally validate onboarding from Claude or another compatible client.
 4. Decide whether a public always-on PROD demonstration is justified after its
    abuse and cost controls are tested in DEV.
 5. Consider GitHub OIDC delivery and a recorded demonstration afterward.

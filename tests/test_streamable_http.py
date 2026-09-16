@@ -15,7 +15,12 @@ from mcp import Client
 from mcp_types.jsonrpc import HEADER_MISMATCH
 from starlette.testclient import TestClient
 
-from aws_remote_mcp.adapters.fakes import FakeTelegramAdapter, FakeTrelloAdapter
+from aws_remote_mcp.adapters.fakes import (
+    FakeAwsAdapter,
+    FakeTelegramAdapter,
+    FakeTrelloAdapter,
+)
+from aws_remote_mcp.adapters.protocols import AwsAdapterResult
 from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.http_server import (
     LOCAL_CALLER,
@@ -78,9 +83,96 @@ def test_modern_discovery_and_tool_listing(http_client: TestClient) -> None:
     assert tool_names == {
         "diagnostico",
         "listar_inventario_aws",
+        "buscar_recursos_aws",
         "preparar_mensaje_telegram",
         "preparar_tarjeta_trello",
     }
+
+
+def test_resource_explorer_search_is_registered_read_only_and_audited_safely() -> None:
+    query = "service:lambda region:eu-west-1"
+    secret = "arn:aws:lambda:eu-west-1:123456789012:function:private-resource"
+    aws = FakeAwsAdapter(
+        responses={
+            "aws.resource_explorer.search": AwsAdapterResult(
+                data={
+                    "query": query,
+                    "read_only": True,
+                    "resources": [{"resource_id": "function:private-resource"}],
+                },
+                sdk_requests=1,
+                resources=1,
+            )
+        }
+    )
+    telegram = FakeTelegramAdapter()
+    trello = FakeTrelloAdapter()
+    records: list[dict[str, Any]] = []
+    app = create_app(
+        allowed_hosts=("testserver",),
+        aws_adapter=aws,
+        telegram_adapter=telegram,
+        trello_adapter=trello,
+        audit_sink=records.append,
+        audit_request_id="resource-search-1",
+    )
+
+    with TestClient(app) as client:
+        body, headers = modern_request("tools/list")
+        listing = client.post("/mcp", json=body, headers=headers)
+        names = {tool["name"] for tool in response_json(listing)["result"]["tools"]}
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "buscar_recursos_aws",
+                "arguments": {"query": query, "limit": 2},
+            },
+            name="buscar_recursos_aws",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+        content = response_json(response)["result"]["structuredContent"]
+
+    assert "buscar_recursos_aws" in names
+    assert response.status_code == 200
+    assert content["status"] == "ok"
+    assert content["data"]["read_only"] is True
+    assert content["counters"]["external_writes_attempted"] == 0
+    assert aws.calls == [("aws.resource_explorer.search", {"query": query, "limit": 2})]
+    assert telegram.calls == []
+    assert trello.calls == []
+    assert len(records) == 1
+    assert records[0]["tool"] == "buscar_recursos_aws"
+    assert records[0]["counters"]["sdk_requests"] == 1
+    assert records[0]["counters"]["resources"] == 1
+    assert records[0]["counters"]["external_writes_attempted"] == 0
+    assert query not in str(records)
+    assert secret not in str(records)
+
+
+def test_resource_explorer_mcp_tool_supplies_bounded_defaults() -> None:
+    aws = FakeAwsAdapter(
+        responses={
+            "aws.resource_explorer.search": AwsAdapterResult(
+                data={"region": "eu-west-1", "query": "*", "max_results": 25},
+                sdk_requests=1,
+                resources=0,
+            )
+        }
+    )
+    app = create_app(allowed_hosts=("testserver",), aws_adapter=aws)
+
+    with TestClient(app) as client:
+        body, headers = modern_request(
+            "tools/call",
+            params={"name": "buscar_recursos_aws", "arguments": {}},
+            name="buscar_recursos_aws",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+
+    content = response_json(response)["result"]["structuredContent"]
+    assert response.status_code == 200
+    assert content["status"] == "ok"
+    assert aws.calls == [("aws.resource_explorer.search", {"query": "*", "limit": 25})]
 
 
 def test_tool_call_returns_structured_content(http_client: TestClient) -> None:
@@ -177,6 +269,7 @@ def test_external_tools_require_prepare_then_exact_confirmation() -> None:
         assert names == {
             "diagnostico",
             "listar_inventario_aws",
+            "buscar_recursos_aws",
             "preparar_mensaje_telegram",
             "enviar_mensaje_telegram",
             "preparar_tarjeta_trello",
