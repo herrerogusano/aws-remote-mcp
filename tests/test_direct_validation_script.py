@@ -14,7 +14,7 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     cleanup = script.index("finally {", script.index("$validation ="))
 
     assert schedule < enable < invoke < cleanup
-    assert script.count("Invoke-DirectMcp") == 8
+    assert script.count("Invoke-DirectMcp") == 9
     assert "if ($ValidateExternalWrites)" in script
     assert script.count('name = "preparar_mensaje_telegram"') == 1
     assert script.count('name = "enviar_mensaje_telegram"') == 1
@@ -30,3 +30,8 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     assert "$inventoryContent.counters.sdk_requests -ne 2" in script
     assert "$inventoryContent.counters.resources -gt 20" in script
     assert "$inventoryContent.counters.external_writes_attempted -ne 0" in script
+    assert 'name = "buscar_recursos_aws"' in script
+    assert 'query = "service:lambda region:eu-west-1"' in script
+    assert "$resourceSearchContent.data.returned -gt 5" in script
+    assert "$resourceSearchContent.counters.sdk_requests -ne 1" in script
+    assert "$resourceSearchContent.counters.external_writes_attempted -ne 0" in script

@@ -214,6 +214,7 @@ try {
     $expectedToolNames = if ($externalIntegrationsEnabled) {
         @(
             "crear_tarjeta_trello",
+            "buscar_recursos_aws",
             "diagnostico",
             "enviar_mensaje_telegram",
             "listar_inventario_aws",
@@ -222,7 +223,7 @@ try {
         )
     }
     else {
-        @("diagnostico", "listar_inventario_aws")
+        @("buscar_recursos_aws", "diagnostico", "listar_inventario_aws")
     }
     if (($toolNames -join ",") -ne ($expectedToolNames -join ",")) {
         throw "Unexpected tool list."
@@ -259,6 +260,31 @@ try {
         throw "Bounded AWS inventory contract failed."
     }
     $validation["aws_inventory"] = "ok; 2 reads; max 20 resources; no writes"
+
+    $resourceSearch = Invoke-DirectMcp `
+        -Method "tools/call" `
+        -Params @{
+            name = "buscar_recursos_aws"
+            arguments = @{
+                query = "service:lambda region:eu-west-1"
+                limit = 5
+            }
+        } `
+        -Name "buscar_recursos_aws"
+    $resourceSearchContent = $resourceSearch.result.structuredContent
+    if (
+        $resourceSearchContent.status -ne "ok" -or
+        $resourceSearchContent.data.read_only -ne $true -or
+        $resourceSearchContent.data.region -ne "eu-west-1" -or
+        $resourceSearchContent.data.returned -lt 1 -or
+        $resourceSearchContent.data.returned -gt 5 -or
+        $resourceSearchContent.counters.sdk_requests -ne 1 -or
+        $resourceSearchContent.counters.external_writes_attempted -ne 0 -or
+        $resourceSearchContent.counters.external_writes_succeeded -ne 0
+    ) {
+        throw "Bounded Resource Explorer search contract failed."
+    }
+    $validation["resource_explorer"] = "ok; 1 read; max 5 resources; no writes"
 
     if ($ValidateExternalWrites) {
         if (-not $externalIntegrationsEnabled) {
