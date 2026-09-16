@@ -54,9 +54,9 @@ schedule. Cost Explorer is not part of this increment.
 
 ## Cost Explorer increment
 
-The Cost Explorer capability is implemented, verified offline and deployed to
-closed DEV; it has not been called. It is hidden unless
-`EnableCostExplorer=true`; the template default and PROD value remain false.
+The Cost Explorer capability is implemented, verified offline and validated in
+closed DEV. It is hidden unless `EnableCostExplorer=true`; the template default
+and PROD value remain false.
 Preparation validates an explicit date range of at most 31 days, `DAILY` or
 `MONTHLY` granularity, and one `SERVICE` or `REGION` grouping without making a
 Cost Explorer request.
@@ -93,6 +93,15 @@ The failed request consumed one of the three September quota slots and can cost
 at most `$0.01`. Cleanup restored API disablement and reserved concurrency zero,
 with no remaining alarm or schedule. The IAM correction keeps the action list
 unchanged and broadens only that action's resource element.
+
+After deploying that correction through a change set whose only effective
+property change was the execution-role policy, a second confirmed query passed
+on 2026-09-17. It made exactly one paid SDK request, returned one monthly period
+with 18 sanitized service groups, emitted no warnings or errors and attempted no
+external write. The September quota counter became two of three: one rejected
+request and one successful request, for a maximum API-request charge of `$0.02`.
+The independent closing audit again confirmed API disablement, reserved
+concurrency zero, no alarm and no schedule.
 
 ## Current state
 
