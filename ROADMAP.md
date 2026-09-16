@@ -56,21 +56,21 @@ MCP client
   one-page bounds, sanitized identifiers and an exact-view least-privilege IAM
   contract.
 - Opt-in Cost Explorer query implemented, verified offline and deployed to
-  closed DEV with an exact primary-billing-view IAM scope, five-minute
+  closed DEV with the primary billing view fixed at runtime, five-minute
   single-use confirmation, one-request/one-page `$0.01` execution contract and
-  a persistent three-request/`$0.03` global monthly ceiling.
+  a persistent three-request/`$0.03` global monthly ceiling. A live query
+  returned 18 sanitized service groups through exactly one SDK request and no
+  writes; the independent shutdown audit passed.
 
 ## Next milestones
 
 The server and Codex client validation are complete. The next portfolio steps
 remain deliberately gated:
 
-1. Separately decide whether to spend `$0.01` on one closed DEV Cost Explorer
-   validation.
-2. Optionally validate onboarding from Claude or another compatible client.
-3. Decide whether a public always-on PROD demonstration is justified after its
+1. Optionally validate onboarding from Claude or another compatible client.
+2. Decide whether a public always-on PROD demonstration is justified after its
    abuse and cost controls are tested in DEV.
-4. Consider GitHub OIDC delivery and a recorded demonstration afterward.
+3. Consider GitHub OIDC delivery and a recorded demonstration afterward.
 
 ## Success criteria
 

@@ -100,6 +100,31 @@ change keeps `ce:GetCostAndUsage` as the only Cost Explorer action and uses
 `Resource: "*"`; the adapter continues to require and send the exact primary
 billing-view ARN.
 
+## Successful Cost Explorer validation
+
+Date: 2026-09-17
+
+The IAM correction was deployed through a reviewed change set. CloudFormation's
+property-level comparison showed that its only effective change was the resource
+element of the existing `ce:GetCostAndUsage` statement; application code, API,
+Lambda configuration and every other permission were unchanged.
+
+The next confirmed validation succeeded with exactly one paid SDK request. It
+returned one monthly period containing 18 sanitized `SERVICE` groups, without
+warnings, errors, pagination, retries or external writes. Together with the
+earlier rejected request, the persistent September quota counter is two of
+three, representing a maximum Cost Explorer API-request charge of `$0.02`.
+
+The independent post-validation audit confirmed:
+
+- API default endpoint disabled: `true`;
+- Lambda reserved concurrency: `0`;
+- temporary request alarm count: `0`;
+- automatic-close schedule count: `0`;
+- audit status: `ok`;
+- SDK requests: `1`;
+- external writes attempted and completed: `0`.
+
 ## Confirmed external integration validation
 
 Date: 2026-09-08  
