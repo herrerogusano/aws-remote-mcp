@@ -86,10 +86,9 @@ AWS documentation is inconsistent about whether `GetView` is also needed:
 the Search API reference and Service Authorization Reference list `Search` as
 the operation's minimum permission, while the troubleshooting guide says to
 grant `GetView` and `Search`. This implementation follows the operation-specific
-API reference and passes the view ARN directly. A future separately approved,
-closed DEV validation must establish whether `Search` alone works in practice;
-do not broaden the policy preemptively. If AWS requires `GetView`, add it only
-on the same exact configured view ARN after reviewing the evidence.
+API reference and passes the view ARN directly. Closed DEV validation on
+2026-09-16 successfully called the configured view with this policy, proving
+that `Search` alone is sufficient for this runtime. `GetView` remains absent.
 
 Resource Explorer is not a universal or authoritative inventory. Results are
 limited to supported resource types, the selected view's filters and the
@@ -121,6 +120,29 @@ zero. The window lasted about 35 seconds. Independent cleanup checks confirmed
 API disabled, concurrency zero and no temporary alarm, schedule, OAuth directory
 or Inspector process. Resource names and raw output are not retained as public
 evidence. Future invocations still require an approved bounded window.
+
+## Resource Explorer deployment evidence
+
+DEV uses a dedicated unfiltered view in the `eu-west-1` aggregator index. The
+aggregator currently receives the pre-existing local indexes from `eu-north-1`
+and `us-east-1` in addition to `eu-west-1`; it is not presented as complete for
+regions without a local index. The view includes no optional tag properties and
+is not associated as the account default.
+
+The reviewed DEV change set made no additions, deletions or replacements. Its
+only effective application changes were the Lambda code, one environment value
+and one inline statement granting `Search` on the dedicated view with exact
+region and operation conditions. External integrations and WorkOS settings were
+preserved.
+
+Direct validation kept API Gateway disabled, temporarily enabled only the MCP
+Lambda and installed an independent five-minute shutdown schedule. The MCP
+catalog included `buscar_recursos_aws`; a query for Lambda resources returned
+five sanitized results from one SDK request with zero external writes. The
+structured audit record contains the tool name, normalized `ok` status and
+bounded counters, but no query, ARN, account ID or result data. Cleanup restored
+reserved concurrency zero and removed the schedule; the final audit found the
+API disabled and no alarm or schedule.
 
 ## Evidence checked 2026-09-02
 

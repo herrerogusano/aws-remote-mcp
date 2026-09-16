@@ -52,22 +52,21 @@ MCP client
   with independent Cognito authorization and both execution gates closed.
 - WorkOS AuthKit onboarding from Codex through CIMD, PKCE and OAuth, followed by
   successful remote diagnostics and bounded AWS inventory with zero writes.
-- Opt-in Resource Explorer search implemented offline with one-page bounds,
-  sanitized identifiers and an exact-view least-privilege IAM contract.
+- Opt-in Resource Explorer search deployed and validated in closed DEV with
+  one-page bounds, sanitized identifiers and an exact-view least-privilege IAM
+  contract.
 
 ## Next milestones
 
 The server and Codex client validation are complete. The next portfolio steps
 remain deliberately gated:
 
-1. Configure one pre-existing Resource Explorer view and validate the new search
-   in closed DEV before considering deployment to PROD.
-2. Add a separately confirmed, single-page Cost Explorer query with its explicit
+1. Add a separately confirmed, single-page Cost Explorer query with its explicit
    `$0.01` API cost only after Resource Explorer validation.
-3. Optionally validate onboarding from Claude or another compatible client.
-4. Decide whether a public always-on PROD demonstration is justified after its
+2. Optionally validate onboarding from Claude or another compatible client.
+3. Decide whether a public always-on PROD demonstration is justified after its
    abuse and cost controls are tested in DEV.
-5. Consider GitHub OIDC delivery and a recorded demonstration afterward.
+4. Consider GitHub OIDC delivery and a recorded demonstration afterward.
 
 ## Success criteria
 
