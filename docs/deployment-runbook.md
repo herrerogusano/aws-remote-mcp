@@ -39,7 +39,9 @@ With `EnableCostExplorer=false`, require that the generated role has no Cost
 Explorer action, `COST_EXPLORER_ENABLED` is `false` and
 `COST_EXPLORER_BILLING_VIEW_ARN` is empty. If the switch is separately approved
 as `true`, require only `ce:GetCostAndUsage`, in its own statement on
-`arn:<partition>:billing::<account>:billingview/primary`; require
+`Resource: "*"` because AWS evaluates this operation against its service
+endpoint ARN (the observed form is
+`arn:aws:ce:us-east-1:<account>:/GetCostAndUsage`); require
 `COST_EXPLORER_BILLING_VIEW_ARN` to contain that exact ARN and to be passed
 explicitly to the API. No Cost Explorer API call is part of deployment or this
 preflight.

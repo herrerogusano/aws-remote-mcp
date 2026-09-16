@@ -64,9 +64,14 @@ view, so no setup or indexing permissions are added.
 Cost Explorer is disabled by default. `EnableCostExplorer=false` hides its tools,
 omits Cost Explorer IAM, and does not activate or configure the AWS service. If
 separately approved and enabled, the role gets only `ce:GetCostAndUsage` on the
-account's `primary` billing view ARN; the Lambda receives that same value as
-`COST_EXPLORER_BILLING_VIEW_ARN`. A single-use confirmation gates each execution.
-The runtime contract is exactly one SDK request, one result page, no
+`Resource: "*"`. This wildcard is required by the observed AWS authorization
+evaluation for `GetCostAndUsage`, which evaluated the request against the
+service endpoint ARN (for example, the observed
+`arn:aws:ce:us-east-1:<account>:/GetCostAndUsage`)
+rather than the billing-view ARN. The Lambda still fixes `BillingViewArn` to the
+account's primary billing view through
+`COST_EXPLORER_BILLING_VIEW_ARN`. A single-use confirmation gates each
+execution. The runtime contract is exactly one SDK request, one result page, no
 pagination and no automatic retry; a `NextPageToken` is not followed. The
 confirmation itself is not a Cost Explorer API request; each API request (each
 page in a paginated query) costs $0.01.

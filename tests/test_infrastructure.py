@@ -97,7 +97,7 @@ def test_resource_explorer_is_opt_in_and_scoped_to_one_search_view() -> None:
         assert forbidden not in template
 
 
-def test_cost_explorer_is_opt_in_and_scoped_to_primary_billing_view() -> None:
+def test_cost_explorer_is_opt_in_with_primary_billing_view_contract() -> None:
     template = template_text()
     primary_arn = "".join(
         (
@@ -105,11 +105,14 @@ def test_cost_explorer_is_opt_in_and_scoped_to_primary_billing_view() -> None:
             "billingview/primary",
         )
     )
-
     assert 'EnableCostExplorer:\n    Type: String\n    Default: "false"' in template
     assert 'CostExplorerEnabled: !Equals [!Ref EnableCostExplorer, "true"]' in template
-    assert "Action: ce:GetCostAndUsage" in template
-    assert f'Resource: !Sub "{primary_arn}"' in template
+    assert (
+        "Sid: ReadPrimaryBillingViewCostAndUsage\n"
+        "                  Effect: Allow\n"
+        "                  Action: ce:GetCostAndUsage\n"
+        '                  Resource: "*"'
+    ) in template
     assert "COST_EXPLORER_ENABLED: !Ref EnableCostExplorer" in template
     assert (
         "COST_EXPLORER_BILLING_VIEW_ARN: !If\n"

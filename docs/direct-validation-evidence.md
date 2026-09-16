@@ -80,6 +80,26 @@ not claim that the API Gateway IAM data path has been validated.
 
 - https://aws.amazon.com/lambda/pricing/
 
+## First Cost Explorer request
+
+Date: 2026-09-16
+
+Regions: application in `eu-west-1`; Cost Explorer endpoint in `us-east-1`
+
+The confirmed validation consumed one September quota slot and issued exactly
+one `GetCostAndUsage` SDK request. AWS rejected it with `AccessDenied` before
+returning cost data because the execution role allowed the action only on the
+primary billing-view ARN while AWS evaluated the request against its
+service-operation ARN. The request can incur at most `$0.01`; no retry was made.
+
+The structured audit record reported `error`, one SDK request and zero external
+writes. The independent closing audit confirmed that the API remained disabled,
+Lambda reserved concurrency returned to zero, and no temporary alarm or schedule
+remained. The monthly counter was exactly one of three. The corrective IAM
+change keeps `ce:GetCostAndUsage` as the only Cost Explorer action and uses
+`Resource: "*"`; the adapter continues to require and send the exact primary
+billing-view ARN.
+
 ## Confirmed external integration validation
 
 Date: 2026-09-08  

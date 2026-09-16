@@ -399,10 +399,13 @@ the same exact view.
 Expose Cost Explorer only when `EnableCostExplorer=true`; default it to false
 for DEV and PROD. When false, hide the MCP tools, omit the API permission and
 make no Cost Explorer call. When true, grant only `ce:GetCostAndUsage` on the
-account's exact primary billing view ARN and pass that same ARN in the request.
-Do not grant Cost Explorer wildcard or additional billing actions. The account-
-level service activation remains outside this template and must never be
-performed automatically.
+`Resource: "*"`, because a closed DEV validation showed AWS evaluates the
+request against the Cost Explorer service endpoint ARN rather than the billing-
+view ARN (the observed request resource had the form
+`arn:aws:ce:us-east-1:<account>:/GetCostAndUsage`). The adapter still passes the
+exact account primary view ARN as `BillingViewArn`. Do not grant additional
+billing actions. The account-level service activation remains outside this
+template and must never be performed automatically.
 
 Each confirmed execution is single-use and may issue at most one SDK request for
 one result page, with retries and pagination disabled. Each page costs $0.01.
