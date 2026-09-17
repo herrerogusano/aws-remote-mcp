@@ -5,7 +5,15 @@ param(
     [switch]$ValidateExternalWrites,
     [switch]$ValidateCostExplorer,
     [string]$CostStartDate = "",
-    [string]$CostEndDate = ""
+    [string]$CostEndDate = "",
+    [string]$ResourceQuery = "service:lambda region:eu-west-1",
+    [ValidateRange(1, 5)][int]$ResourceLimit = 5,
+    [switch]$IncludeResourceDetails,
+    [string]$TelegramMessage = "AWS Remote MCP DEV validation successful.",
+    [string]$TrelloTitle = "AWS Remote MCP — DEV validation",
+    [string]$TrelloDescription = (
+        "Disposable validation card created by the closed DEV integration test."
+    )
 )
 
 $ErrorActionPreference = "Stop"
@@ -277,8 +285,8 @@ try {
         -Params @{
             name = "buscar_recursos_aws"
             arguments = @{
-                query = "service:lambda region:eu-west-1"
-                limit = 5
+                query = $ResourceQuery
+                limit = $ResourceLimit
             }
         } `
         -Name "buscar_recursos_aws"
@@ -305,7 +313,7 @@ try {
         $resourceSearchContent.data.read_only -ne $true -or
         $resourceSearchContent.data.region -ne "eu-west-1" -or
         $resourceSearchContent.data.returned -lt 1 -or
-        $resourceSearchContent.data.returned -gt 5 -or
+        $resourceSearchContent.data.returned -gt $ResourceLimit -or
         $resourceSearchContent.counters.sdk_requests -ne 1 -or
         $resourceSearchContent.counters.external_writes_attempted -ne 0 -or
         $resourceSearchContent.counters.external_writes_succeeded -ne 0
@@ -313,7 +321,12 @@ try {
         throw "Bounded Resource Explorer search contract failed."
     }
     $validation["resource_explorer"] = `
-        "$($resourceSearchContent.status); 1 read; max 5 resources; no writes"
+        "$($resourceSearchContent.status); 1 read; max $ResourceLimit resources; no writes"
+    if ($IncludeResourceDetails) {
+        $validation["resource_explorer_resources"] = @(
+            $resourceSearchContent.data.resources
+        )
+    }
 
     if ($ValidateCostExplorer) {
         if (-not $costExplorerEnabled) {
@@ -384,10 +397,9 @@ try {
             throw "External write validation requires the deployed integration profile."
         }
 
-        $telegramMessage = "AWS Remote MCP DEV validation successful."
         $telegramArguments = @{
             destination = "owner"
-            message = $telegramMessage
+            message = $TelegramMessage
         }
         $telegramPrepared = Invoke-DirectMcp `
             -Method "tools/call" `
@@ -424,8 +436,8 @@ try {
         $trelloArguments = @{
             board = "portfolio"
             list_name = "inbox"
-            title = "AWS Remote MCP — DEV validation"
-            description = "Disposable validation card created by the closed DEV integration test."
+            title = $TrelloTitle
+            description = $TrelloDescription
         }
         $trelloPrepared = Invoke-DirectMcp `
             -Method "tools/call" `
