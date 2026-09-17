@@ -9,6 +9,7 @@ param(
     [string]$ResourceQuery = "service:lambda region:eu-west-1",
     [ValidateRange(1, 5)][int]$ResourceLimit = 5,
     [switch]$IncludeResourceDetails,
+    [switch]$IncludeProjectInventoryDetails,
     [string]$TelegramMessage = "AWS Remote MCP DEV validation successful.",
     [string]$TrelloTitle = "AWS Remote MCP — DEV validation",
     [string]$TrelloDescription = (
@@ -227,7 +228,8 @@ try {
     $expectedToolNames = @(
         "buscar_recursos_aws",
         "diagnostico",
-        "listar_inventario_aws"
+        "listar_inventario_aws",
+        "listar_recursos_proyecto_aws"
     )
     if ($externalIntegrationsEnabled) {
         $expectedToolNames += @(
@@ -279,6 +281,39 @@ try {
         throw "Bounded AWS inventory contract failed."
     }
     $validation["aws_inventory"] = "ok; 2 reads; max 20 resources; no writes"
+
+    $projectInventory = Invoke-DirectMcp `
+        -Method "tools/call" `
+        -Params @{ name = "listar_recursos_proyecto_aws"; arguments = @{} } `
+        -Name "listar_recursos_proyecto_aws"
+    $projectInventoryContent = $projectInventory.result.structuredContent
+    if (
+        $projectInventoryContent.status -ne "ok" -or
+        $projectInventoryContent.data.read_only -ne $true -or
+        $projectInventoryContent.data.complete -ne $true -or
+        @($projectInventoryContent.data.stacks).Count -ne 4 -or
+        $projectInventoryContent.data.total -lt 1 -or
+        $projectInventoryContent.data.total -gt 100 -or
+        $projectInventoryContent.data.sdk_requests -lt 4 -or
+        $projectInventoryContent.data.sdk_requests -gt 80 -or
+        $projectInventoryContent.data.writes -ne 0 -or
+        $projectInventoryContent.data.external_writes -ne 0 -or
+        $projectInventoryContent.counters.sdk_requests -ne `
+            $projectInventoryContent.data.sdk_requests -or
+        $projectInventoryContent.counters.resources -ne `
+            $projectInventoryContent.data.total -or
+        $projectInventoryContent.counters.external_writes_attempted -ne 0 -or
+        $projectInventoryContent.counters.external_writes_succeeded -ne 0
+    ) {
+        throw "Complete project inventory contract failed."
+    }
+    $validation["project_inventory"] = `
+        "ok; complete; $($projectInventoryContent.data.total) resources; no writes"
+    if ($IncludeProjectInventoryDetails) {
+        $validation["project_inventory_resources"] = @(
+            $projectInventoryContent.data.resources
+        )
+    }
 
     $resourceSearch = Invoke-DirectMcp `
         -Method "tools/call" `

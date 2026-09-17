@@ -11,6 +11,7 @@ AUDITED_TOOLS = frozenset(
     {
         "diagnostico",
         "listar_inventario_aws",
+        "listar_recursos_proyecto_aws",
         "buscar_recursos_aws",
         "preparar_consulta_costes_aws",
         "consultar_costes_aws",

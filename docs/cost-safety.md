@@ -59,6 +59,18 @@ does not create or enable Resource Explorer, indexes, views, or other persistent
 infrastructure. The Lambda role receives only `Search` on that exact existing
 view, so no setup or indexing permissions are added.
 
+The exact project-stack inventory performs read-only CloudFormation
+`ListStackResources` calls against only the four fixed project stacks in
+`eu-west-1` and follows the service pagination token until all direct resources
+are returned. CloudFormation control-plane reads have no separate per-request
+charge documented by AWS; the enclosing authenticated API Gateway request and
+Lambda duration remain subject to the existing metered path. Pagination is
+bounded to 20 pages per stack and output is capped at 100 resources, in addition
+to the Lambda timeout and single-attempt SDK configuration. Reaching a cap or
+encountering an invalid page forces `complete=false`; it never silently claims
+an exhaustive result. The role uses resource-level IAM on the four exact stack
+ARN patterns and does not grant account-wide stack discovery or mutation.
+
 ## Cost Explorer opt-in
 
 Cost Explorer is disabled by default. `EnableCostExplorer=false` hides its tools,

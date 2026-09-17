@@ -90,6 +90,13 @@ def build_default_registry() -> OperationRegistry:
                 "2026-09-16.",
             ),
             OperationSpec(
+                "aws.cloudformation.project_inventory",
+                OperationClassification.FREE_VERIFIED_READ,
+                "Paginated read-only CloudFormation resource summaries for the "
+                "fixed project stack allowlist, with defensive page/resource "
+                "caps and no write actions.",
+            ),
+            OperationSpec(
                 COST_EXPLORER_OPERATION,
                 OperationClassification.CONTROLLED_BILLABLE,
                 "One Cost Explorer API request is billable at USD 0.01; "

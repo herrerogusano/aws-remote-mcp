@@ -93,6 +93,31 @@ def test_resource_explorer_audit_uses_only_allowlisted_metadata_and_counters() -
     assert raw_arn not in str(record)
 
 
+def test_project_inventory_tool_is_audited_without_result_data() -> None:
+    result = ToolResult(
+        status="ok",
+        data={"resources": [{"physical_id": "must-not-appear"}]},
+        counters=OperationCounters(sdk_requests=4, resources=47),
+    )
+
+    record = build_tool_audit_record(
+        tool="listar_recursos_proyecto_aws",
+        result=result,
+        caller=CallerContext("https://issuer.example", "caller-1"),
+        environment="dev",
+        request_id="project-inventory-1",
+    )
+
+    assert record["tool"] == "listar_recursos_proyecto_aws"
+    assert record["counters"] == {
+        "sdk_requests": 4,
+        "resources": 47,
+        "external_writes_attempted": 0,
+        "external_writes_succeeded": 0,
+    }
+    assert "must-not-appear" not in str(record)
+
+
 def test_cost_explorer_audit_omits_query_results_view_arn_and_confirmation() -> None:
     query = "2026-01-01/2026-01-02"
     account_id = "123456789012"

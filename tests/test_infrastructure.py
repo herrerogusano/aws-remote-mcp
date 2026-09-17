@@ -65,6 +65,21 @@ def test_template_iam_is_exact_and_external_access_is_conditional() -> None:
     assert "aws:RequestedRegion: !Ref AWS::Region" in template
     assert "apigateway:GET" in template
     assert "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis" in template
+    assert "Action: cloudformation:ListStackResources" in template
+    assert "Sid: ListExactProjectStackResources" in template
+    assert "aws:RequestedRegion: eu-west-1" in template
+    for stack_name in (
+        "aws-remote-mcp-dev",
+        "aws-remote-mcp-prod",
+        "aws-remote-mcp-auth-dev",
+        "aws-remote-mcp-auth-prod",
+    ):
+        assert (
+            "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:"
+            f"stack/{stack_name}/*"
+        ) in template
+    assert "cloudformation:ListStacks" not in template
+    assert "cloudformation:DescribeStacks" not in template
     assert "dynamodb:PutItem" in template
     assert "dynamodb:UpdateItem" in template
     assert "dynamodb:GetItem" in template

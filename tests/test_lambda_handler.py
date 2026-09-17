@@ -146,6 +146,7 @@ def test_repeated_events_use_fresh_sdk_lifespan(
         assert names == {
             "diagnostico",
             "listar_inventario_aws",
+            "listar_recursos_proyecto_aws",
             "buscar_recursos_aws",
         }
 

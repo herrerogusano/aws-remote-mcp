@@ -132,7 +132,23 @@ def build_tool_service(
                 },
                 sdk_requests=0,
                 resources=1,
-            )
+            ),
+            "aws.cloudformation.project_inventory": AwsAdapterResult(
+                data={
+                    "region": "eu-west-1",
+                    "read_only": True,
+                    "stacks": [],
+                    "resources": [],
+                    "total": 0,
+                    "complete": True,
+                    "sdk_requests": 0,
+                    "writes": 0,
+                    "external_writes": 0,
+                    "fixture": True,
+                },
+                sdk_requests=0,
+                resources=0,
+            ),
         }
     )
     local_limiter = (
@@ -247,6 +263,13 @@ def create_server(
 
         result = tools.run_aws_operation("aws.inventory.list", {})
         return audited_result("listar_inventario_aws", result)
+
+    @server.tool(name="listar_recursos_proyecto_aws", structured_output=True)
+    def list_project_aws_resources() -> dict[str, Any]:
+        """Return all direct project-stack resources or mark the result incomplete."""
+
+        result = tools.run_aws_operation("aws.cloudformation.project_inventory", {})
+        return audited_result("listar_recursos_proyecto_aws", result)
 
     @server.tool(name="buscar_recursos_aws", structured_output=True)
     def search_aws_resources(query: str = "*", limit: int = 25) -> dict[str, Any]:

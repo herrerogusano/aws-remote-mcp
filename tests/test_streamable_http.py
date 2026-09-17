@@ -99,6 +99,7 @@ def test_modern_discovery_and_tool_listing(http_client: TestClient) -> None:
     assert tool_names == {
         "diagnostico",
         "listar_inventario_aws",
+        "listar_recursos_proyecto_aws",
         "buscar_recursos_aws",
         "preparar_mensaje_telegram",
         "preparar_tarjeta_trello",
@@ -189,6 +190,52 @@ def test_resource_explorer_mcp_tool_supplies_bounded_defaults() -> None:
     assert response.status_code == 200
     assert content["status"] == "ok"
     assert aws.calls == [("aws.resource_explorer.search", {"query": "*", "limit": 25})]
+
+
+def test_project_inventory_mcp_tool_calls_allowlisted_read() -> None:
+    aws = FakeAwsAdapter(
+        responses={
+            "aws.cloudformation.project_inventory": AwsAdapterResult(
+                data={
+                    "resources": [
+                        {
+                            "stack": "aws-remote-mcp-dev",
+                            "logical_id": "Function",
+                            "resource_type": "AWS::Lambda::Function",
+                            "physical_id": "dev-function",
+                            "status": "CREATE_COMPLETE",
+                        }
+                    ],
+                    "total": 1,
+                    "complete": True,
+                    "sdk_requests": 8,
+                    "writes": 0,
+                },
+                sdk_requests=8,
+                resources=1,
+            )
+        }
+    )
+    app = create_app(allowed_hosts=("testserver",), aws_adapter=aws)
+
+    with TestClient(app) as client:
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "listar_recursos_proyecto_aws",
+                "arguments": {},
+            },
+            name="listar_recursos_proyecto_aws",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+
+    content = response_json(response)["result"]["structuredContent"]
+    assert response.status_code == 200
+    assert content["status"] == "ok"
+    assert content["data"]["complete"] is True
+    assert content["data"]["writes"] == 0
+    assert content["counters"]["sdk_requests"] == 8
+    assert aws.calls == [("aws.cloudformation.project_inventory", {})]
 
 
 def test_tool_call_returns_structured_content(http_client: TestClient) -> None:
@@ -285,6 +332,7 @@ def test_external_tools_require_prepare_then_exact_confirmation() -> None:
         assert names == {
             "diagnostico",
             "listar_inventario_aws",
+            "listar_recursos_proyecto_aws",
             "buscar_recursos_aws",
             "preparar_mensaje_telegram",
             "enviar_mensaje_telegram",
