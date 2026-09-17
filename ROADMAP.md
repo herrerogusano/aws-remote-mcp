@@ -55,6 +55,10 @@ MCP client
 - Opt-in Resource Explorer search deployed and validated in closed DEV with
   one-page bounds, sanitized identifiers and an exact-view least-privilege IAM
   contract.
+- Exhaustive project inventory deployed and validated across the four exact
+  application/authentication DEV and PROD stacks: 47 direct resources, four
+  CloudFormation reads, `complete=true` and zero writes. The same visual flow
+  delivered a confirmed Telegram summary and Trello evidence card.
 - Opt-in Cost Explorer query implemented, verified offline and deployed to
   closed DEV with the primary billing view fixed at runtime, five-minute
   single-use confirmation, one-request/one-page `$0.01` execution contract and

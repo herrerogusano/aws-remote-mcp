@@ -166,3 +166,32 @@ Verified closing state:
 - MCP Lambda reserved concurrency: `0` after validation;
 - temporary request alarm count: `0`;
 - automatic-close schedule count: `0`.
+
+## Complete project inventory and visual evidence
+
+Date: 2026-09-17
+
+The exact project inventory was deployed through a reviewed change set whose
+only effective changes were MCP Lambda code and one read-only execution-role
+statement. The role can call only `cloudformation:ListStackResources` on the
+four exact application/authentication DEV and PROD stack ARN patterns; it cannot
+list account stacks, describe arbitrary stacks or mutate CloudFormation.
+
+Closed direct validation produced `complete=true` for all 47 direct managed
+resources through four SDK requests, one per stack. It emitted no warnings or
+errors and made no external write during discovery. The result distinguishes
+this authoritative stack inventory from the intentionally bounded and
+eventually consistent Resource Explorer search.
+
+After explicit payload confirmation, the same visual validation sent one
+Telegram summary and created one Trello evidence card. Structured audit records
+showed exactly one attempted and one successful provider write for each tool;
+they contained no payload, provider response, account identifier or resource
+details.
+
+The independent closing audit confirmed:
+
+- API default endpoint disabled: `true`;
+- Lambda reserved concurrency: `0`;
+- temporary request alarm count: `0`;
+- automatic-close schedule count: `0`.
