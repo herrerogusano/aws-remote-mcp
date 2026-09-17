@@ -39,8 +39,12 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     assert "$inventoryContent.counters.external_writes_attempted -ne 0" in script
     assert 'name = "buscar_recursos_aws"' in script
     assert "$expectedToolNames | Sort-Object" in script
-    assert 'query = "service:lambda region:eu-west-1"' in script
-    assert "$resourceSearchContent.data.returned -gt 5" in script
+    assert "[ValidateRange(1, 5)][int]$ResourceLimit = 5" in script
+    assert "query = $ResourceQuery" in script
+    assert "limit = $ResourceLimit" in script
+    assert "$resourceSearchContent.data.returned -gt $ResourceLimit" in script
+    assert "if ($IncludeResourceDetails)" in script
+    assert '$validation["resource_explorer_resources"]' in script
     assert "$resourceSearchContent.counters.sdk_requests -ne 1" in script
     assert "$resourceSearchContent.counters.external_writes_attempted -ne 0" in script
     assert '@("ok", "partial") -notcontains $resourceSearchContent.status' in script
@@ -49,3 +53,6 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
     assert '$resourceSearchContent.status -eq "partial" -and' in script
     assert "$resourceSearchWarningCodes.Count -eq 0" in script
     assert '$_ -ne "resource_explorer_invalid_resources"' in script
+    assert "message = $TelegramMessage" in script
+    assert "title = $TrelloTitle" in script
+    assert "description = $TrelloDescription" in script
