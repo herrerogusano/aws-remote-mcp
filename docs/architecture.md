@@ -101,6 +101,18 @@ produces a sanitized partial result; two failed services produce a sanitized
 error. Local development and CI inject a deterministic fake and make no AWS
 requests.
 
+The project-resource view is an independent read-only CloudFormation inventory.
+It uses `ListStackResources` for the four fixed stacks
+`aws-remote-mcp-dev`, `aws-remote-mcp-prod`, `aws-remote-mcp-auth-dev` and
+`aws-remote-mcp-auth-prod` in `eu-west-1`, following `NextToken` until each
+stack's direct resources are exhausted. Callers cannot select a stack, region,
+page token or result limit. Its execution role is scoped to the four exact
+CloudFormation stack ARN patterns and the `ListStackResources` action; it has
+no stack-listing, stack-description or mutation permission. This is exhaustive
+for those stacks' direct resources only when `complete=true`, not a universal
+account inventory. A 20-page-per-stack and 100-resource output ceiling fails
+closed as an explicitly incomplete result.
+
 An independent opt-in operation, `aws.resource_explorer.search`, searches only
 one preconfigured Resource Explorer view. Callers can supply a bounded positive
 query and a limit from 1 to 50, but cannot choose the view, request another SDK

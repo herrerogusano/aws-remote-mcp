@@ -52,11 +52,17 @@ The inventory closed deployment changes the MCP execution role. It adds only:
 
 - `lambda:ListFunctions` on `Resource: "*"`, because AWS provides no resource
   type for this list action, constrained by `aws:RequestedRegion=eu-west-1`;
-- `apigateway:GET` on the exact regional `/apis` collection ARN.
+- `apigateway:GET` on the exact regional `/apis` collection ARN;
+- `cloudformation:ListStackResources` on only the four exact project stack ARN
+  patterns (`aws-remote-mcp-dev`, `aws-remote-mcp-prod`,
+  `aws-remote-mcp-auth-dev` and `aws-remote-mcp-auth-prod`), constrained by
+  `aws:RequestedRegion=eu-west-1`.
 
-It adds no resource, route, secret, write permission or persistent-cost service.
-The API and Lambda remain disabled during deployment. This role change still
-requires explicit approval before running the command below.
+The CloudFormation action supports resource-level scoping to stack ARNs. It adds
+no account-wide stack listing, stack description, mutation action, route, secret
+or persistent-cost service. The API and Lambda remain disabled during deployment.
+This role change still requires explicit approval before running the command
+below.
 
 The default keeps `ResourceExplorerViewArn` empty, so no Resource Explorer
 permission is included. To opt in, a separate explicit IAM/deployment review

@@ -1,4 +1,4 @@
-# Bounded AWS inventory and Resource Explorer search
+# AWS inventory, exact project-stack resources and Resource Explorer search
 
 ## Contract
 
@@ -16,6 +16,50 @@ Each execution is restricted to `eu-west-1` and performs:
 Pagination is never followed. The SDK uses two-second connection and
 three-second read timeouts with total attempts set to one. The enclosing Lambda
 still has its ten-second timeout.
+
+## Exact project-stack inventory
+
+The project-resource view is a separate read-only inventory over the four fixed
+CloudFormation stacks in `eu-west-1`:
+
+```text
+aws-remote-mcp-dev
+aws-remote-mcp-prod
+aws-remote-mcp-auth-dev
+aws-remote-mcp-auth-prod
+```
+
+Callers cannot supply stack names, a region, a page token or a result limit.
+The adapter invokes CloudFormation `ListStackResources` for each of those
+stacks and follows `NextToken` until every direct stack resource has been
+returned. This is exhaustive for the resources directly managed by these exact
+stacks only when the response says `complete=true`; it is not an account-wide
+CloudFormation or Resource Explorer scan. Pagination is capped at 20 pages per
+stack and the sanitized output at 100 resources so it remains below the common
+64 KiB tool-result ceiling. Reaching either cap, receiving a malformed or
+repeated token, omitting a malformed or duplicate resource, or failing to read
+any stack forces `complete=false` and a partial or error status.
+Nested stacks, if introduced later, would require an explicit reviewed change
+to the inventory contract before their child resources could be included.
+
+The Lambda role grants only `cloudformation:ListStackResources` on the four
+stack ARN patterns below. CloudFormation stack ARNs contain an opaque stack ID,
+so the final `/*` matches the ID while keeping the stack name exact:
+
+```text
+arn:<partition>:cloudformation:eu-west-1:<account>:stack/aws-remote-mcp-dev/*
+arn:<partition>:cloudformation:eu-west-1:<account>:stack/aws-remote-mcp-prod/*
+arn:<partition>:cloudformation:eu-west-1:<account>:stack/aws-remote-mcp-auth-dev/*
+arn:<partition>:cloudformation:eu-west-1:<account>:stack/aws-remote-mcp-auth-prod/*
+```
+
+The policy also requires `aws:RequestedRegion=eu-west-1`. It deliberately does
+not grant `cloudformation:ListStacks`, `cloudformation:DescribeStacks`, stack
+mutation actions or a wildcard stack resource. The CloudFormation Service
+Authorization Reference lists `ListStackResources` as supporting the `stack*`
+resource type, which makes this resource-level policy possible. The API itself
+supports pagination; following only the service-provided token is necessary to
+honor the exhaustive contract and does not authorize access to other stacks.
 
 ## Data minimization
 
@@ -36,7 +80,7 @@ exact SDK requests and resources; external-write counters remain zero.
 
 ## Deployed IAM
 
-The Lambda execution role gains these two base statements:
+The Lambda execution role gains these three base inventory statements:
 
 ```text
 lambda:ListFunctions
@@ -45,6 +89,10 @@ lambda:ListFunctions
 
 apigateway:GET
   Resource: arn:<partition>:apigateway:eu-west-1::/apis
+
+cloudformation:ListStackResources
+  Resource: the four exact project-stack ARN patterns above
+  Condition: aws:RequestedRegion = eu-west-1
 ```
 
 AWS does not support resource-level scoping for `ListFunctions`, so its wildcard
@@ -148,8 +196,10 @@ API disabled and no alarm or schedule.
 
 - https://docs.aws.amazon.com/lambda/latest/api/API_ListFunctions.html
 - https://docs.aws.amazon.com/apigatewayv2/latest/api-reference/apis.html
+- https://docs.aws.amazon.com/AWSCloudFormation/latest/APIReference/API_ListStackResources.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_lambda.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_apigatewayv2.html
+- https://docs.aws.amazon.com/service-authorization/latest/reference/list_awscloudformation.html
 - https://docs.aws.amazon.com/resource-explorer/latest/apireference/API_Search.html
 - https://docs.aws.amazon.com/service-authorization/latest/reference/list_resource-explorer-2.html
 - https://docs.aws.amazon.com/resource-explorer/latest/userguide/troubleshooting_search.html

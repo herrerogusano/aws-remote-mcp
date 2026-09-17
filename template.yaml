@@ -132,6 +132,17 @@ Resources:
                 Effect: Allow
                 Action: apigateway:GET
                 Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis"
+              - Sid: ListExactProjectStackResources
+                Effect: Allow
+                Action: cloudformation:ListStackResources
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-dev/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-prod/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-auth-dev/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-auth-prod/*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: eu-west-1
               - !If
                 - ResourceExplorerViewConfigured
                 - Sid: SearchOnlyConfiguredResourceExplorerView

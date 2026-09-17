@@ -16,11 +16,20 @@ from aws_remote_mcp.core.models import JsonValue
 
 INVENTORY_OPERATION = "aws.inventory.list"
 RESOURCE_EXPLORER_OPERATION = "aws.resource_explorer.search"
+PROJECT_INVENTORY_OPERATION = "aws.cloudformation.project_inventory"
 MAX_RESOURCES_PER_SERVICE = 10
 SUPPORTED_REGION = "eu-west-1"
 MAX_NAME_CHARS = 128
 MAX_RESOURCE_EXPLORER_RESULTS = 50
 MAX_RESOURCE_EXPLORER_QUERY_CHARS = 256
+MAX_PROJECT_INVENTORY_PAGES = 20
+MAX_PROJECT_INVENTORY_RESOURCES = 100
+PROJECT_STACKS = (
+    "aws-remote-mcp-dev",
+    "aws-remote-mcp-prod",
+    "aws-remote-mcp-auth-dev",
+    "aws-remote-mcp-auth-prod",
+)
 RESOURCE_EXPLORER_SERVICES = frozenset(
     {
         "apigateway",
@@ -103,6 +112,8 @@ class AwsInventoryAdapter:
     ) -> AwsAdapterResult:
         if operation == RESOURCE_EXPLORER_OPERATION:
             return self._search_resource_explorer(arguments)
+        if operation == PROJECT_INVENTORY_OPERATION:
+            return self._list_project_cloudformation_resources(arguments)
         if operation != INVENTORY_OPERATION:
             raise AdapterError(
                 "aws_operation_not_supported",
@@ -184,6 +195,171 @@ class AwsInventoryAdapter:
             resources=resources,
             status=status,
             issues=tuple(issues),
+        )
+
+    def _list_project_cloudformation_resources(
+        self, arguments: Mapping[str, JsonValue]
+    ) -> AwsAdapterResult:
+        """List all resources in the fixed project CloudFormation stacks.
+
+        Stack names are intentionally not caller-controlled. Pagination is
+        followed until every allowlisted stack is exhausted, subject to hard
+        safety caps that can only make ``complete`` false.
+        """
+
+        if arguments:
+            raise AdapterError(
+                "invalid_project_inventory_arguments",
+                "Project CloudFormation inventory does not accept arguments.",
+            )
+
+        resources: list[JsonValue] = []
+        issues: list[AdapterIssue] = []
+        issue_codes: set[str] = set()
+        seen_resources: set[tuple[str, str]] = set()
+        sdk_requests = 0
+        complete = True
+
+        def add_issue(code: str, message: str) -> None:
+            if code not in issue_codes:
+                issue_codes.add(code)
+                issues.append(AdapterIssue(code, message))
+
+        try:
+            client = self._client_factory("cloudformation", self._region)
+        except Exception:
+            add_issue(
+                "project_inventory_client_unavailable",
+                "The CloudFormation inventory client could not be created.",
+            )
+            return _project_inventory_result(
+                resources=resources,
+                sdk_requests=sdk_requests,
+                complete=False,
+                issues=issues,
+                region=self._region,
+            )
+
+        for stack in PROJECT_STACKS:
+            next_token: str | None = None
+            seen_tokens: set[str] = set()
+            pages = 0
+            stack_complete = False
+            while not stack_complete:
+                if pages >= MAX_PROJECT_INVENTORY_PAGES:
+                    complete = False
+                    add_issue(
+                        "project_inventory_page_limit",
+                        "Project inventory reached its defensive page limit.",
+                    )
+                    break
+
+                request: dict[str, str] = {"StackName": stack}
+                if next_token is not None:
+                    request["NextToken"] = next_token
+                sdk_requests += 1
+                try:
+                    response = client.list_stack_resources(**request)
+                except Exception:
+                    complete = False
+                    add_issue(
+                        "project_inventory_stack_unavailable",
+                        "A project CloudFormation stack could not be read.",
+                    )
+                    break
+                pages += 1
+                if not isinstance(response, Mapping):
+                    complete = False
+                    add_issue(
+                        "project_inventory_invalid_response",
+                        "CloudFormation returned an invalid stack response.",
+                    )
+                    break
+                if "StackResourceSummaries" not in response:
+                    complete = False
+                    add_issue(
+                        "project_inventory_invalid_response",
+                        "CloudFormation returned an incomplete stack response.",
+                    )
+                    break
+                page_resources = response["StackResourceSummaries"]
+                if not isinstance(page_resources, list):
+                    complete = False
+                    add_issue(
+                        "project_inventory_invalid_response",
+                        "CloudFormation returned an invalid resource list.",
+                    )
+                    break
+                for item in page_resources:
+                    sanitized = _sanitize_cloudformation_resource(item, stack)
+                    if sanitized is None:
+                        complete = False
+                        add_issue(
+                            "project_inventory_invalid_resource",
+                            "Some CloudFormation resources were omitted because "
+                            "they were malformed.",
+                        )
+                        continue
+                    logical_id = sanitized["logical_id"]
+                    if not isinstance(logical_id, str):
+                        complete = False
+                        add_issue(
+                            "project_inventory_invalid_resource",
+                            "Some CloudFormation resources were omitted because "
+                            "they were malformed.",
+                        )
+                        continue
+                    resource_key = (stack, logical_id)
+                    if resource_key in seen_resources:
+                        complete = False
+                        add_issue(
+                            "project_inventory_duplicate_resource",
+                            "A duplicate CloudFormation resource was omitted.",
+                        )
+                        continue
+                    if len(resources) >= MAX_PROJECT_INVENTORY_RESOURCES:
+                        complete = False
+                        break
+                    seen_resources.add(resource_key)
+                    resources.append(sanitized)
+                if len(resources) >= MAX_PROJECT_INVENTORY_RESOURCES:
+                    complete = False
+                    add_issue(
+                        "project_inventory_resource_limit",
+                        "Project inventory reached its defensive resource limit.",
+                    )
+                    break
+
+                if "NextToken" not in response:
+                    stack_complete = True
+                    continue
+                candidate = response["NextToken"]
+                if not isinstance(candidate, str) or not candidate:
+                    complete = False
+                    add_issue(
+                        "project_inventory_invalid_token",
+                        "CloudFormation returned an invalid pagination token.",
+                    )
+                    break
+                if candidate in seen_tokens:
+                    complete = False
+                    add_issue(
+                        "project_inventory_repeated_token",
+                        "CloudFormation repeated a pagination token.",
+                    )
+                    break
+                seen_tokens.add(candidate)
+                next_token = candidate
+            if len(resources) >= MAX_PROJECT_INVENTORY_RESOURCES:
+                complete = False
+                break
+
+        return _project_inventory_result(
+            resources=resources,
+            sdk_requests=sdk_requests,
+            complete=complete,
+            issues=issues,
+            region=self._region,
         )
 
     def _search_resource_explorer(
@@ -356,6 +532,92 @@ class AwsInventoryAdapter:
                 }
             )
         return resources, bool(response.get("NextToken"))
+
+
+def _project_inventory_result(
+    *,
+    resources: list[JsonValue],
+    sdk_requests: int,
+    complete: bool,
+    issues: list[AdapterIssue],
+    region: str,
+) -> AwsAdapterResult:
+    status: Literal["ok", "partial", "error"]
+    if complete and not issues:
+        status = "ok"
+    elif resources:
+        status = "partial"
+    else:
+        status = "error"
+    return AwsAdapterResult(
+        data={
+            "region": region,
+            "read_only": True,
+            "stacks": list(PROJECT_STACKS),
+            "resources": resources,
+            "total": len(resources),
+            "complete": complete,
+            "sdk_requests": sdk_requests,
+            "writes": 0,
+            "external_writes": 0,
+        },
+        sdk_requests=sdk_requests,
+        resources=len(resources),
+        status=status,
+        issues=tuple(issues),
+    )
+
+
+_CFN_LOGICAL_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}\Z")
+_CFN_RESOURCE_TYPE = re.compile(r"AWS::[A-Za-z0-9][A-Za-z0-9:.-]{1,127}\Z")
+_CFN_STATUS = re.compile(r"[A-Z][A-Z0-9_]{1,63}\Z")
+_ACCOUNT_ID = re.compile(r"\b\d{12}\b")
+
+
+def _sanitize_physical_id(value: object) -> str:
+    """Keep a useful identifier while dropping ARNs and account IDs."""
+
+    if not isinstance(value, str) or not value:
+        return "unknown"
+    value = value[:MAX_NAME_CHARS]
+    # Physical IDs are often ARNs. Returning only their final resource part
+    # avoids exposing an ARN, region/account path, or account number.
+    if value.startswith("arn:"):
+        value = value.rsplit(":", 1)[-1]
+    value = _ACCOUNT_ID.sub("<redacted-account>", value)
+    value = _RESOURCE_ID_CHARS.sub("_", value)
+    return value[:MAX_NAME_CHARS] or "unknown"
+
+
+def _sanitize_cloudformation_resource(
+    item: object, stack: str
+) -> dict[str, JsonValue] | None:
+    if not isinstance(item, Mapping):
+        return None
+    logical_id = item.get("LogicalResourceId")
+    resource_type = item.get("ResourceType")
+    status = item.get("ResourceStatus")
+    if (
+        not isinstance(logical_id, str)
+        or _CFN_LOGICAL_ID.fullmatch(logical_id) is None
+        or not isinstance(resource_type, str)
+        or _CFN_RESOURCE_TYPE.fullmatch(resource_type) is None
+        or not isinstance(status, str)
+        or _CFN_STATUS.fullmatch(status) is None
+    ):
+        return None
+    physical_id = item.get("PhysicalResourceId")
+    if isinstance(physical_id, str) and any(
+        ord(character) < 32 or ord(character) == 127 for character in physical_id
+    ):
+        return None
+    return {
+        "stack": stack,
+        "logical_id": logical_id,
+        "resource_type": resource_type,
+        "physical_id": _sanitize_physical_id(physical_id),
+        "status": status,
+    }
 
 
 def _validate_resource_explorer_query(query: str) -> str:
