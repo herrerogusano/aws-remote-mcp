@@ -15,7 +15,15 @@ def test_direct_validation_is_bounded_and_fail_closed() -> None:
 
     assert schedule < enable < invoke < cleanup
     assert script.count("Invoke-DirectMcp") == 12
-    assert "if ($ValidateExternalWrites)" in script
+    assert (
+        "$validateTelegram = $ValidateExternalWrites -or $ValidateTelegramWrite"
+        in script
+    )
+    assert (
+        "$validateTrello = $ValidateExternalWrites -or $ValidateTrelloWrite" in script
+    )
+    assert "if ($validateTelegram)" in script
+    assert "if ($validateTrello)" in script
     assert "if ($ValidateCostExplorer)" in script
     assert script.count('name = "preparar_mensaje_telegram"') == 1
     assert script.count('name = "enviar_mensaje_telegram"') == 1

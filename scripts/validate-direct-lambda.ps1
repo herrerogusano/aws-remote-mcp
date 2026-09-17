@@ -3,6 +3,8 @@ param(
     [string]$StackName = "aws-remote-mcp-dev",
     [string]$Region = "eu-west-1",
     [switch]$ValidateExternalWrites,
+    [switch]$ValidateTelegramWrite,
+    [switch]$ValidateTrelloWrite,
     [switch]$ValidateCostExplorer,
     [string]$CostStartDate = "",
     [string]$CostEndDate = "",
@@ -18,6 +20,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$validateTelegram = $ValidateExternalWrites -or $ValidateTelegramWrite
+$validateTrello = $ValidateExternalWrites -or $ValidateTrelloWrite
 
 function Invoke-AwsCli {
     param([Parameter(Mandatory)][string[]]$Arguments)
@@ -427,11 +431,11 @@ try {
             "ok; 1 paid read; max USD 0.01; monthly cap USD 0.03; no writes"
     }
 
-    if ($ValidateExternalWrites) {
-        if (-not $externalIntegrationsEnabled) {
-            throw "External write validation requires the deployed integration profile."
-        }
+    if (($validateTelegram -or $validateTrello) -and -not $externalIntegrationsEnabled) {
+        throw "External write validation requires the deployed integration profile."
+    }
 
+    if ($validateTelegram) {
         $telegramArguments = @{
             destination = "owner"
             message = $TelegramMessage
@@ -467,7 +471,9 @@ try {
             throw "Telegram validation write was not confirmed."
         }
         $validation["telegram"] = "ok; one confirmed write"
+    }
 
+    if ($validateTrello) {
         $trelloArguments = @{
             board = "portfolio"
             list_name = "inbox"
