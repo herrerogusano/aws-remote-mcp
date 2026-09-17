@@ -28,6 +28,25 @@ and Trello were not called. DEV was closed immediately afterward and the audit
 confirmed the API disabled and Lambda concurrency zero. PROD remains unchanged
 and closed.
 
+## Complete project inventory increment
+
+The bounded Resource Explorer search remains available for discovery, but it is
+no longer used to answer an exhaustive project-ownership question. The separate
+`listar_recursos_proyecto_aws` tool reads the direct resources managed by the
+four fixed application and authentication stacks in DEV and PROD. It follows
+CloudFormation pagination internally and returns `complete=true` only when every
+stack finishes without malformed pages, repeated tokens, duplicates, errors or
+defensive-cap truncation.
+
+The increment merged through PR #52 and was deployed to closed DEV on
+2026-09-17. The reviewed change set modified only the MCP Lambda code and added
+`cloudformation:ListStackResources` on the four exact stack ARN patterns. The
+live validation returned `complete=true`, 47 resources and four SDK reads with
+zero writes. A subsequently confirmed visual flow sent one Telegram summary and
+created one Trello evidence card; both provider writes completed once. The
+closing audit confirmed the API disabled, reserved concurrency zero and no
+remaining alarm or schedule.
+
 ## Resource Explorer increment
 
 The Resource Explorer read-only increment is implemented, merged and deployed
