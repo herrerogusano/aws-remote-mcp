@@ -263,8 +263,8 @@ record contains only a token digest, caller fingerprint, action, payload digest,
 expiry and consumed flag. Keep consumed records until TTL cleanup so replays can
 be distinguished, and check expiry in the condition because TTL deletion is
 asynchronous. Configure on-demand billing with maximum read and write throughput
-of one request unit per second, and create the table only when the external
-integration profile is explicitly enabled.
+of one read and two write request units per second, and create the table only
+when external integrations or the Cost Explorer quota are explicitly enabled.
 
 Store Telegram and Trello configuration together in one Parameter Store Standard
 SecureString encrypted by the AWS-managed `aws/ssm` key. Fetch it only after
@@ -338,3 +338,86 @@ cycle. Resolve it with a closed bootstrap application stack, create the bound
 PROD authorization stack, then immediately replace the bootstrap issuer and
 audience with the PROD values. Because both execution gates are fixed closed in
 the template, the intermediate configuration cannot process requests.
+
+## D-031 - Multi-client OAuth through WorkOS AuthKit
+
+The portfolio target is a public remote MCP that a user can add to different AI
+clients, not a single-company installation and not an Inspector-specific demo.
+Supersede D-018 only for future client onboarding: retain its Cognito deployment
+as historical validation infrastructure, while selecting WorkOS AuthKit for the
+next DEV profile.
+
+Use WorkOS because its MCP authorization service natively supports the current
+Client ID Metadata Document flow and deprecated DCR fallback, authorization code
+with S256 PKCE, hosted user authentication, exact resource indicators and JWT
+verification. Its staging environment adds no provider charge or AWS resource,
+and the published AuthKit allowance is far above portfolio traffic. Do not add a
+custom registration shim or store a WorkOS management key in the MCP runtime.
+
+Make the AWS resource server provider-neutral. Configure JWT issuer, OAuth
+authorization-server issuer, exact MCP audience and one required scope as
+deployment inputs. WorkOS uses `openid`; the legacy Cognito profile retains its
+resource-bound `/use` scope. Require `token_use=access` when a provider emits the
+claim, but do not require this Cognito-specific claim from other issuers. Exact
+issuer, audience, expiry, subject and scope remain mandatory at API Gateway and
+are checked again at Lambda before bearer removal.
+
+First configure WorkOS staging and deploy only to closed DEV. Validate provider
+metadata before opening, then test Claude, Cursor and Codex-compatible clients in
+separate five-minute windows with the existing concurrency, throttling, request
+alarm and automatic shutdown controls. PROD remains unchanged until those tests
+pass and an always-on cost posture is separately reviewed.
+
+## D-032 - Opt-in Resource Explorer search through an existing view
+
+Support Resource Explorer as a separate read-only search source, not as part of
+the fixed Lambda/API Gateway inventory operation. Keep it disabled when the
+`ResourceExplorerViewArn` deployment parameter is empty. Enabling it requires
+the exact ARN of a pre-existing view in `eu-west-1`; callers cannot choose a
+view or region.
+
+Grant only `resource-explorer-2:Search` on that exact view ARN and constrain the
+request to `eu-west-1` and `resource-explorer-2:Operation=Search` (the IAM action
+also maps to the separate `ListResources` API operation). Do not create
+indexes, views or service-linked roles, grant Resource Explorer managed
+policies, or activate/configure the service as part of this project. Resource
+Explorer has no additional search charge; the
+existing API Gateway and Lambda invocation costs and closed-by-default controls
+remain unchanged. Cost Explorer remains excluded.
+
+Treat search results as eventually consistent and incomplete: coverage depends
+on supported resource types, the selected view's filters and pre-existing
+index/aggregator configuration. Do not present Resource Explorer as a universal
+or authoritative account inventory. The Search API reference lists `Search` as
+the minimum operation permission, though AWS's troubleshooting guide also names
+`GetView`; keep `GetView` absent until a separately approved closed DEV
+validation demonstrates it is necessary, then scope any required permission to
+the same exact view.
+
+## D-033 - Cost Explorer as a separately confirmed paid read
+
+Expose Cost Explorer only when `EnableCostExplorer=true`; default it to false
+for DEV and PROD. When false, hide the MCP tools, omit the API permission and
+make no Cost Explorer call. When true, grant only `ce:GetCostAndUsage` on the
+`Resource: "*"`, because a closed DEV validation showed AWS evaluates the
+request against the Cost Explorer service endpoint ARN rather than the billing-
+view ARN (the observed request resource had the form
+`arn:aws:ce:us-east-1:<account>:/GetCostAndUsage`). The adapter still passes the
+exact account primary view ARN as `BillingViewArn`. Do not grant additional
+billing actions. The account-level service activation remains outside this
+template and must never be performed automatically.
+
+Each confirmed execution is single-use and may issue at most one SDK request for
+one result page, with retries and pagination disabled. Each page costs $0.01.
+Before the API call, atomically consume one of three global UTC-month slots in
+the confirmation table; failures consume their slot, exhausted or unavailable
+quota fails closed, and no caller can reset it. This limits Cost Explorer calls
+originating from this MCP to $0.03 per month while the table remains intact.
+Current-month data is delayed, typically by about a day, so the tool is not a
+real-time spend monitor or an AWS-account-wide hard budget cap.
+
+Use the existing confirmation table when either external integrations or Cost
+Explorer is enabled, without enabling Telegram or Trello when only Cost
+Explorer is on. If both features are later disabled, the conditional table is
+deleted with the application stack; no Cost Explorer service resource is
+created by the template. Cost Explorer remains false in PROD.

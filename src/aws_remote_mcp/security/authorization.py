@@ -36,20 +36,24 @@ class CallerNormalizationError(RuntimeError):
 class AuthorizationConfig:
     issuer_url: str
     resource_server_url: str
-    required_scopes: tuple[str, ...] = ()
+    authorization_server_url: str | None = None
+    required_scopes: tuple[str, ...] | None = None
 
     def __post_init__(self) -> None:
-        expected = (mcp_use_scope(self.resource_server_url),)
-        if not self.required_scopes:
-            object.__setattr__(self, "required_scopes", expected)
-        elif self.required_scopes != expected:
-            raise ValueError("Required scope must be bound to the MCP resource URL.")
+        if self.authorization_server_url is None:
+            object.__setattr__(self, "authorization_server_url", self.issuer_url)
+        if self.required_scopes is None:
+            object.__setattr__(
+                self,
+                "required_scopes",
+                (mcp_use_scope(self.resource_server_url),),
+            )
 
     def sdk_settings(self) -> AuthSettings:
         return AuthSettings(
             issuer_url=AnyHttpUrl(self.issuer_url),
             resource_server_url=AnyHttpUrl(self.resource_server_url),
-            required_scopes=list(self.required_scopes),
+            required_scopes=list(self.required_scopes or ()),
         )
 
     @property
@@ -100,7 +104,8 @@ class OfflineJwtVerifier:
                 issuer=self._issuer,
                 options={"require": ["aud", "exp", "iss", "sub"]},
             )
-            if claims.get("token_use") != "access":
+            token_use = claims.get("token_use")
+            if token_use is not None and token_use != "access":
                 return None
             client_id = claims.get("client_id") or claims.get("azp")
             subject = claims.get("sub")
@@ -117,8 +122,9 @@ class OfflineJwtVerifier:
             "iss": claims["iss"],
             "sub": subject,
             "aud": claims["aud"],
-            "token_use": "access",
         }
+        if token_use is not None:
+            minimized_claims["token_use"] = "access"
         return AccessToken(
             token=token,
             client_id=client_id,
@@ -176,7 +182,7 @@ class ScopeChallengeMiddleware:
             ):
                 headers = MutableHeaders(raw=message["headers"])
                 challenge = headers.get("www-authenticate")
-                if challenge and "scope=" not in challenge:
+                if challenge and self._scope_value and "scope=" not in challenge:
                     headers["www-authenticate"] = (
                         f'{challenge}, scope="{self._scope_value}"'
                     )

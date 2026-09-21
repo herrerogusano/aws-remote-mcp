@@ -24,7 +24,7 @@ feature branch -> pull request -> develop -> DEV
 develop -> promotion pull request -> main -> PROD
 ```
 
-DEV and PROD use separate application and Cognito stacks. No Cognito user,
+DEV and PROD use separate application and authorization configurations. No user,
 SecureString, confirmation record or provider destination is promoted between
 them. PROD begins with external integrations disabled and both its endpoint and
 compute independently closed.
@@ -101,6 +101,40 @@ produces a sanitized partial result; two failed services produce a sanitized
 error. Local development and CI inject a deterministic fake and make no AWS
 requests.
 
+The project-resource view is an independent read-only CloudFormation inventory.
+It uses `ListStackResources` for the four fixed stacks
+`aws-remote-mcp-dev`, `aws-remote-mcp-prod`, `aws-remote-mcp-auth-dev` and
+`aws-remote-mcp-auth-prod` in `eu-west-1`, following `NextToken` until each
+stack's direct resources are exhausted. Callers cannot select a stack, region,
+page token or result limit. Its execution role is scoped to the four exact
+CloudFormation stack ARN patterns and the `ListStackResources` action; it has
+no stack-listing, stack-description or mutation permission. This is exhaustive
+for those stacks' direct resources only when `complete=true`, not a universal
+account inventory. A 20-page-per-stack and 100-resource output ceiling fails
+closed as an explicitly incomplete result.
+
+An independent opt-in operation, `aws.resource_explorer.search`, searches only
+one preconfigured Resource Explorer view. Callers can supply a bounded positive
+query and a limit from 1 to 50, but cannot choose the view, request another SDK
+operation or continue pagination. Each invocation makes exactly one `Search`
+request. The adapter discards full ARNs, account IDs, properties, tags, view
+metadata and pagination tokens; it returns only service, resource type, region
+and a bounded resource identifier. An absent view fails before client creation.
+
+The deployment never creates or modifies Resource Explorer indexes, views or
+service-linked roles. Its conditional IAM statement grants only `Search` on one
+exact existing view and distinguishes the `Search` API from `ListResources`.
+Resource Explorer remains eventually consistent and non-authoritative, so an
+empty result cannot prove that a resource does not exist.
+
+The separate Cost Explorer path is disabled by default. When enabled, a prepare
+tool validates a maximum 31-day query and creates no billing request. Execution
+atomically consumes both the caller-bound confirmation and one of three global
+UTC-month quota slots before issuing exactly one non-retried, non-paginated
+`GetCostAndUsage` request against the account's primary billing view. Missing or
+unavailable quota state fails closed. DEV persists the counter in the existing
+confirmation table; local development uses an in-memory implementation only.
+
 ## Local MCP transport
 
 The application core is wrapped in the official MCP Python SDK 2.x ASGI app:
@@ -133,3 +167,11 @@ Validated token data becomes only `CallerContext(issuer, subject, scopes)` befor
 entering application services. The bearer token remains inside the HTTP auth
 boundary and is not a downstream credential. The initial MCP access scope is
 `<MCP resource URI>/use`; confirmation is still independently required for writes.
+
+The resource server is provider-neutral: JWT issuer, OAuth authorization-server
+issuer, exact audience and required scope are independent deployment inputs. The
+legacy Cognito profile uses its resource-bound `/use` scope. The multi-client
+profile uses WorkOS AuthKit, an exact MCP resource audience and `openid`, while
+supporting both CIMD and DCR client registration outside AWS. Provider-specific
+claims such as Cognito's `token_use` are checked when present but are not assumed
+to exist in standards-compliant access tokens.

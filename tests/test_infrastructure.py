@@ -37,14 +37,17 @@ def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     assert 'openapi: "3.0.1"' in template
     assert 'url: "/"' in template
     assert "paths: {}" in template
-    assert "CognitoJwtAuthorizer:" in template
-    assert "DefaultAuthorizer: CognitoJwtAuthorizer" in template
+    assert "OAuthJwtAuthorizer:" in template
+    assert "DefaultAuthorizer: OAuthJwtAuthorizer" in template
     assert 'IdentitySource: "$request.header.Authorization"' in template
-    assert "issuer: !Ref CognitoIssuer" in template
+    assert "issuer: !Ref OAuthIssuer" in template
     assert "- !Ref McpTokenAudience" in template
     assert "AuthorizationScopes:" in template
     assert template.count("- !Ref McpRequiredScope") == 2
     assert "McpRequiredScope:" in template
+    assert "OAuthAuthorizationServer:" in template
+    assert "OAUTH_ISSUER: !Ref OAuthIssuer" in template
+    assert "OAUTH_AUTHORIZATION_SERVER: !Ref OAuthAuthorizationServer" in template
     assert "EnableIamAuthorizer" not in template
     assert "AWS_IAM" not in template
 
@@ -62,6 +65,21 @@ def test_template_iam_is_exact_and_external_access_is_conditional() -> None:
     assert "aws:RequestedRegion: !Ref AWS::Region" in template
     assert "apigateway:GET" in template
     assert "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis" in template
+    assert "Action: cloudformation:ListStackResources" in template
+    assert "Sid: ListExactProjectStackResources" in template
+    assert "aws:RequestedRegion: eu-west-1" in template
+    for stack_name in (
+        "aws-remote-mcp-dev",
+        "aws-remote-mcp-prod",
+        "aws-remote-mcp-auth-dev",
+        "aws-remote-mcp-auth-prod",
+    ):
+        assert (
+            "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:"
+            f"stack/{stack_name}/*"
+        ) in template
+    assert "cloudformation:ListStacks" not in template
+    assert "cloudformation:DescribeStacks" not in template
     assert "dynamodb:PutItem" in template
     assert "dynamodb:UpdateItem" in template
     assert "dynamodb:GetItem" in template
@@ -71,6 +89,52 @@ def test_template_iam_is_exact_and_external_access_is_conditional() -> None:
     assert "AdministratorAccess" not in template
     assert "PowerUserAccess" not in template
     assert "ReadOnlyAccess" not in template
+
+
+def test_resource_explorer_is_opt_in_and_scoped_to_one_search_view() -> None:
+    template = template_text()
+
+    assert "ResourceExplorerViewArn:" in template
+    assert 'Default: ""' in template
+    assert "ResourceExplorerViewConfigured:" in template
+    assert "Action: resource-explorer-2:Search" in template
+    assert "Resource: !Ref ResourceExplorerViewArn" in template
+    assert "resource-explorer-2:Operation: Search" in template
+    assert "RESOURCE_EXPLORER_VIEW_ARN: !Ref ResourceExplorerViewArn" in template
+    for forbidden in (
+        "resource-explorer-2:CreateIndex",
+        "resource-explorer-2:CreateView",
+        "resource-explorer-2:GetView",
+        "resource-explorer-2:ListViews",
+        "AWSResourceExplorerFullAccess",
+        "iam:CreateServiceLinkedRole",
+    ):
+        assert forbidden not in template
+
+
+def test_cost_explorer_is_opt_in_with_primary_billing_view_contract() -> None:
+    template = template_text()
+    primary_arn = "".join(
+        (
+            "arn:${AWS::Partition}:billing::${AWS::AccountId}:",
+            "billingview/primary",
+        )
+    )
+    assert 'EnableCostExplorer:\n    Type: String\n    Default: "false"' in template
+    assert 'CostExplorerEnabled: !Equals [!Ref EnableCostExplorer, "true"]' in template
+    assert (
+        "Sid: ReadPrimaryBillingViewCostAndUsage\n"
+        "                  Effect: Allow\n"
+        "                  Action: ce:GetCostAndUsage\n"
+        '                  Resource: "*"'
+    ) in template
+    assert "COST_EXPLORER_ENABLED: !Ref EnableCostExplorer" in template
+    assert (
+        "COST_EXPLORER_BILLING_VIEW_ARN: !If\n"
+        "            - CostExplorerEnabled\n"
+        f'            - !Sub "{primary_arn}"\n'
+        '            - ""'
+    ) in template
 
 
 def test_template_has_no_expensive_network_or_compute_extras() -> None:
@@ -92,10 +156,10 @@ def test_confirmation_table_is_off_by_default_and_cost_bounded() -> None:
 
     assert 'Default: "false"' in template
     assert "Type: AWS::DynamoDB::Table" in template
-    assert "Condition: ExternalIntegrationsEnabled" in template
+    assert "Condition: PersistentConfirmationEnabled" in template
     assert "BillingMode: PAY_PER_REQUEST" in template
     assert "MaxReadRequestUnits: 1" in template
-    assert "MaxWriteRequestUnits: 1" in template
+    assert "MaxWriteRequestUnits: 2" in template
     assert "AttributeName: expires_at" in template
     assert "PointInTimeRecoveryEnabled: false" in template
     assert "DeletionPolicy: Delete" in template

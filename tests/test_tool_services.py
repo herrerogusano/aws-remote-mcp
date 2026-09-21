@@ -74,6 +74,33 @@ def test_safe_aws_operation_uses_fake_adapter(
     assert result.counters.sdk_requests == 2
 
 
+def test_project_inventory_is_exposed_as_a_read_only_operation(
+    adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
+) -> None:
+    aws, _, _ = adapters
+    aws.responses["aws.cloudformation.project_inventory"] = AwsAdapterResult(
+        data={
+            "resources": [],
+            "total": 0,
+            "complete": True,
+            "sdk_requests": 8,
+            "writes": 0,
+        },
+        sdk_requests=8,
+        resources=0,
+    )
+
+    result = build_service(adapters).run_aws_operation(
+        "aws.cloudformation.project_inventory", {}
+    )
+
+    assert result.status == "ok"
+    assert result.data["complete"] is True
+    assert result.data["writes"] == 0
+    assert result.counters.sdk_requests == 8
+    assert result.counters.external_writes_attempted == 0
+
+
 def test_unknown_aws_operation_never_reaches_adapter(
     adapters: tuple[FakeAwsAdapter, FakeTelegramAdapter, FakeTrelloAdapter],
 ) -> None:

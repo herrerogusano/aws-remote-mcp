@@ -1,26 +1,110 @@
 # AWS Remote MCP
 
-A production-shaped, authenticated remote Model Context Protocol server designed
-for AWS Lambda and API Gateway.
+[![CI](https://github.com/herrerogusano/aws-remote-mcp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/herrerogusano/aws-remote-mcp/actions/workflows/ci.yml)
 
-The project exposes a local MCP server over current Streamable HTTP and has a
-closed-by-default DEV foundation deployed in AWS. The application includes a
-bounded, read-only AWS inventory adapter plus confirmed Telegram and Trello
-actions backed by persistent single-use state. Their opt-in DEV profile has been
-validated by direct Lambda invocation while the public endpoint remained closed;
-the endpoint and its compute stay disabled outside separately approved windows.
+An authenticated Model Context Protocol server for AWS, deployed with a
+closed-by-default serverless architecture. It combines bounded AWS inventory,
+explicitly confirmed external actions, OAuth resource binding, least-privilege
+IAM, audit records, and technical cost controls.
 
-## Development
+The project is designed as a production-shaped portfolio system: normal CI is
+offline, live environments remain disabled outside short validation windows,
+and every claim below is tied to recorded evidence rather than an always-open
+public endpoint.
 
-Requirements:
+## What this project demonstrates
 
-- Python 3.13
-- [uv](https://docs.astral.sh/uv/)
+- Current MCP Streamable HTTP transport on AWS Lambda and API Gateway.
+- OAuth/OIDC bearer authorization with exact issuer, audience, scope, and
+  protected-resource metadata contracts.
+- Bounded AWS inventory through Lambda, API Gateway v2, Resource Explorer, and
+  CloudFormation-owned resource discovery.
+- Cost Explorer behind a five-minute, payload-bound confirmation and a maximum
+  of three request attempts per UTC month.
+- Telegram and Trello writes protected by persistent, expiring, single-use
+  confirmation state.
+- Closed-by-default infrastructure, independent shutdown controls, sanitized
+  audit logs, locked dependencies, and offline CI.
 
-Install the locked environment and run the same checks as CI:
+## Architecture
+
+```mermaid
+flowchart LR
+    C["MCP client"] -->|"OAuth + PKCE"| I["Identity provider"]
+    C -->|"Streamable HTTP + bearer token"| A["API Gateway HTTP API"]
+    A -->|"JWT authorizer"| L["AWS Lambda"]
+    L --> G["Operation and cost guards"]
+    G --> R["Bounded AWS reads"]
+    G --> Q["Persistent single-use confirmations"]
+    Q --> T["Telegram / Trello"]
+    L --> O["Sanitized CloudWatch audit records"]
+    S["Scheduled + traffic shutdown"] -. closes .-> A
+    S -. disables .-> L
+```
+
+DEV and PROD are isolated. Both API execution and Lambda concurrency are off by
+default. A live validation window is optional, lasts at most five minutes, and
+arms scheduled and request-volume shutdown paths before execution is enabled.
+
+## Tool surface
+
+| Capability | Default posture | Boundaries |
+| --- | --- | --- |
+| Diagnostics | Local and remote | Sanitized health and configuration only |
+| AWS inventory | Read-only | Fixed services, regions, page counts, result limits, and no SDK retries |
+| Resource search | Disabled by default | One existing Resource Explorer view, one page, at most 50 sanitized results |
+| Cost query | Disabled by default | Exact payload confirmation, one request, no pagination, global monthly quota |
+| Telegram / Trello | Disabled by default | Fixed destinations, persistent one-use confirmation, one attempt, no blind retry |
+
+The local profile uses deterministic fixtures and never contacts AWS or an
+external provider.
+
+## Verified evidence
+
+- A real authorization-code + PKCE + TOTP flow produced a resource-bound access
+  token and completed MCP tool discovery and bounded calls.
+- Real AWS inventory validation completed with two SDK reads, ten sanitized
+  resources, zero writes, and independently verified shutdown.
+- One confirmed Telegram message and one confirmed Trello card were validated
+  through direct Lambda invocation while the public API remained disabled.
+- CloudWatch received exact-schema audit records without tokens, payloads,
+  account IDs, full ARNs, or provider responses.
+- The isolated PROD stack is deployed with no users, no provider credentials,
+  and execution disabled.
+
+The WorkOS multi-client profile is implemented as a target for CIMD/DCR client
+onboarding, but its staging configuration and live client validation remain
+pending. It is not counted as completed evidence.
+
+See the [demonstration guide](docs/demo.md),
+[validation evidence](docs/direct-validation-evidence.md), and
+[current project status](docs/project-status.md).
+
+## Quick local demo
+
+Requirements: Python 3.13 and [uv](https://docs.astral.sh/uv/).
 
 ```bash
 uv sync --locked --all-groups
+uv run aws-remote-mcp
+```
+
+The server binds only to `127.0.0.1:8000` and exposes MCP at
+`http://127.0.0.1:8000/mcp`. A compatible local client can discover:
+
+- `diagnostico`
+- `listar_inventario_aws`
+- `buscar_recursos_aws`
+- `preparar_mensaje_telegram`
+- `preparar_tarjeta_trello`
+
+Execute/send/create tools are intentionally absent from the default local
+profile. See [external integrations](docs/external-integrations.md) for the
+remote confirmation contract.
+
+## Quality gates
+
+```bash
 uv run ruff format --check .
 uv run ruff check .
 uv run mypy
@@ -29,77 +113,32 @@ sam validate --lint --region eu-west-1
 sam build --beta-features
 ```
 
-Run the local server:
+Pull requests and pushes to `develop` or `main` run the same checks without AWS,
+OAuth, Telegram, Trello, or paid-service calls.
 
-```bash
-uv run aws-remote-mcp
-```
+## Security and cost posture
 
-It binds only to `127.0.0.1:8000` and exposes the single MCP endpoint at
-`http://127.0.0.1:8000/mcp`. The transport is stateless and uses JSON responses.
-Current-protocol clients can discover and call:
+- No static cloud or provider credentials in source control or CI.
+- Least-privilege inline IAM derived from the reachable operations.
+- Tokens are removed before the MCP application is constructed.
+- Confirmations are bound to caller, action, normalized payload, and expiry.
+- Ambiguous external-write outcomes are never retried automatically.
+- AWS Budgets is treated as delayed alerting, not as a hard spending cap.
+- The API, compute, traffic alarm, and automatic-close schedule are audited
+  after each validation window.
 
-- `diagnostico`
-- `listar_inventario_aws`
-- `preparar_mensaje_telegram`
-- `preparar_tarjeta_trello`
-
-Local development returns a deterministic fixture for AWS inventory and never
-contacts AWS. Execute/send/create tools remain excluded from the default local
-profile and are exposed remotely only by the explicitly enabled integration
-profile documented in `docs/external-integrations.md`.
+Detailed reasoning is available in the [architecture](docs/architecture.md),
+[threat model](docs/threat-model.md), [cost controls](docs/cost-safety.md), and
+[authorization contract](docs/authorization-contract.md).
 
 ## Branch and environment model
 
 ```text
 feature/* -> develop -> DEV
               |
-              +---- promotion PR -> main -> PROD
+              +---- reviewed promotion -> main -> PROD
 ```
 
-DEV is the validated integration environment. An isolated PROD is deployed from
-`main` and remains closed by default, without copied identities or provider
-credentials. Infrastructure changes require the review described in
-`docs/operational-approvals.md`.
-
-The prepared DEV stack is closed by default: its execute-api endpoint is disabled,
-the MCP route requires a scoped, audience-bound Cognito JWT, and MCP Lambda
-concurrency is zero. A separately approved test window is limited to five minutes
-with an independent scheduled shutdown and request-volume tripwire. See
-`docs/cost-safety.md`.
-
-The deployed Lambda contract, including one confirmed Telegram message and one
-confirmed Trello card, has also been validated directly while the API remained
-disabled. See `docs/direct-validation-evidence.md` and
-`docs/external-integrations.md`.
-
-The selected OAuth/OIDC profile and its deployed single-user Cognito foundation
-are documented in `docs/oauth-provider-evaluation.md` and
-`docs/auth-deployment-runbook.md`. TOTP and JWT route integration are complete;
-any remote opening remains a separate gated action.
-
-The deployed closed DEV inventory implementation permits only one non-paginated
-`ListFunctions` request and one non-paginated API Gateway v2 `GetApis` request,
-with ten results per service and no SDK retries. Real validation passed on
-2026-09-07 with two reads, ten resources and no writes; DEV was closed afterward.
-See `docs/aws-inventory.md`.
-
-## Safety baseline
-
-- No live AWS, Telegram, Trello, OAuth, or paid-service calls in normal CI.
-- No secrets or persistent credentials in source control.
-- No AWS deployment without explicit infrastructure approval.
-- Remote tool calls emit sanitized structured audit records and use bounded
-  traffic.
-
-See `ROADMAP.md` and `docs/project-status.md` for the roadmap and current state.
-The prepared DEV procedure is in `docs/deployment-runbook.md`; explicit approval
-is mandatory before executing it.
-
-For a portfolio review, start with `docs/demo.md`, `docs/architecture.md` and
-`docs/threat-model.md`. They present the verified system without requiring the
-closed AWS endpoint to be opened.
-
-The isolated creation procedure for PROD is documented in
-`docs/prod-deployment-runbook.md`; its verified state is recorded in
-`docs/prod-deployment-evidence.md`.
+Infrastructure changes, live validation, paid reads, and provider writes remain
+explicitly gated operational actions. The repository is fully demonstrable
+without opening the remote endpoint.

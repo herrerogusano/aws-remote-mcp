@@ -4,6 +4,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from aws_remote_mcp.core.cost_query import CostExplorerQuery
 from aws_remote_mcp.core.models import JsonValue
 
 
@@ -44,6 +45,15 @@ class AwsAdapter(Protocol):
     def execute(
         self, operation: str, arguments: Mapping[str, JsonValue]
     ) -> AwsAdapterResult: ...
+
+
+class CostExplorerAdapter(Protocol):
+    """Issue one explicit, billable Cost Explorer query after confirmation."""
+
+    @property
+    def billing_view_arn(self) -> str: ...
+
+    def get_cost_and_usage(self, query: CostExplorerQuery) -> AwsAdapterResult: ...
 
 
 class TelegramAdapter(Protocol):

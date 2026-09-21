@@ -15,13 +15,34 @@ from mcp import Client
 from mcp_types.jsonrpc import HEADER_MISMATCH
 from starlette.testclient import TestClient
 
-from aws_remote_mcp.adapters.fakes import FakeTelegramAdapter, FakeTrelloAdapter
+from aws_remote_mcp.adapters.fakes import (
+    FakeAwsAdapter,
+    FakeTelegramAdapter,
+    FakeTrelloAdapter,
+)
+from aws_remote_mcp.adapters.protocols import AwsAdapterResult
 from aws_remote_mcp.core.confirmation import ConfirmationGuard
 from aws_remote_mcp.http_server import (
     LOCAL_CALLER,
     MAX_HTTP_REQUEST_BYTES,
     create_app,
 )
+
+
+class FakeCostExplorerAdapter:
+    billing_view_arn = "arn:aws:billing::123456789012:billingview/primary"
+
+    def __init__(self) -> None:
+        self.calls: list[Any] = []
+
+    def get_cost_and_usage(self, query: Any) -> AwsAdapterResult:
+        self.calls.append(query)
+        return AwsAdapterResult(
+            data={"region": "us-east-1", "read_only": True},
+            sdk_requests=1,
+            resources=0,
+        )
+
 
 PROTOCOL_VERSION = "2026-07-28"
 META = {
@@ -78,9 +99,143 @@ def test_modern_discovery_and_tool_listing(http_client: TestClient) -> None:
     assert tool_names == {
         "diagnostico",
         "listar_inventario_aws",
+        "listar_recursos_proyecto_aws",
+        "buscar_recursos_aws",
         "preparar_mensaje_telegram",
         "preparar_tarjeta_trello",
     }
+
+
+def test_resource_explorer_search_is_registered_read_only_and_audited_safely() -> None:
+    query = "service:lambda region:eu-west-1"
+    secret = "arn:aws:lambda:eu-west-1:123456789012:function:private-resource"
+    aws = FakeAwsAdapter(
+        responses={
+            "aws.resource_explorer.search": AwsAdapterResult(
+                data={
+                    "query": query,
+                    "read_only": True,
+                    "resources": [{"resource_id": "function:private-resource"}],
+                },
+                sdk_requests=1,
+                resources=1,
+            )
+        }
+    )
+    telegram = FakeTelegramAdapter()
+    trello = FakeTrelloAdapter()
+    records: list[dict[str, Any]] = []
+    app = create_app(
+        allowed_hosts=("testserver",),
+        aws_adapter=aws,
+        telegram_adapter=telegram,
+        trello_adapter=trello,
+        audit_sink=records.append,
+        audit_request_id="resource-search-1",
+    )
+
+    with TestClient(app) as client:
+        body, headers = modern_request("tools/list")
+        listing = client.post("/mcp", json=body, headers=headers)
+        names = {tool["name"] for tool in response_json(listing)["result"]["tools"]}
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "buscar_recursos_aws",
+                "arguments": {"query": query, "limit": 2},
+            },
+            name="buscar_recursos_aws",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+        content = response_json(response)["result"]["structuredContent"]
+
+    assert "buscar_recursos_aws" in names
+    assert response.status_code == 200
+    assert content["status"] == "ok"
+    assert content["data"]["read_only"] is True
+    assert content["counters"]["external_writes_attempted"] == 0
+    assert aws.calls == [("aws.resource_explorer.search", {"query": query, "limit": 2})]
+    assert telegram.calls == []
+    assert trello.calls == []
+    assert len(records) == 1
+    assert records[0]["tool"] == "buscar_recursos_aws"
+    assert records[0]["counters"]["sdk_requests"] == 1
+    assert records[0]["counters"]["resources"] == 1
+    assert records[0]["counters"]["external_writes_attempted"] == 0
+    assert query not in str(records)
+    assert secret not in str(records)
+
+
+def test_resource_explorer_mcp_tool_supplies_bounded_defaults() -> None:
+    aws = FakeAwsAdapter(
+        responses={
+            "aws.resource_explorer.search": AwsAdapterResult(
+                data={"region": "eu-west-1", "query": "*", "max_results": 25},
+                sdk_requests=1,
+                resources=0,
+            )
+        }
+    )
+    app = create_app(allowed_hosts=("testserver",), aws_adapter=aws)
+
+    with TestClient(app) as client:
+        body, headers = modern_request(
+            "tools/call",
+            params={"name": "buscar_recursos_aws", "arguments": {}},
+            name="buscar_recursos_aws",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+
+    content = response_json(response)["result"]["structuredContent"]
+    assert response.status_code == 200
+    assert content["status"] == "ok"
+    assert aws.calls == [("aws.resource_explorer.search", {"query": "*", "limit": 25})]
+
+
+def test_project_inventory_mcp_tool_calls_allowlisted_read() -> None:
+    aws = FakeAwsAdapter(
+        responses={
+            "aws.cloudformation.project_inventory": AwsAdapterResult(
+                data={
+                    "resources": [
+                        {
+                            "stack": "aws-remote-mcp-dev",
+                            "logical_id": "Function",
+                            "resource_type": "AWS::Lambda::Function",
+                            "physical_id": "dev-function",
+                            "status": "CREATE_COMPLETE",
+                        }
+                    ],
+                    "total": 1,
+                    "complete": True,
+                    "sdk_requests": 8,
+                    "writes": 0,
+                },
+                sdk_requests=8,
+                resources=1,
+            )
+        }
+    )
+    app = create_app(allowed_hosts=("testserver",), aws_adapter=aws)
+
+    with TestClient(app) as client:
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "listar_recursos_proyecto_aws",
+                "arguments": {},
+            },
+            name="listar_recursos_proyecto_aws",
+        )
+        response = client.post("/mcp", json=body, headers=headers)
+
+    content = response_json(response)["result"]["structuredContent"]
+    assert response.status_code == 200
+    assert content["status"] == "ok"
+    assert content["data"]["complete"] is True
+    assert content["data"]["writes"] == 0
+    assert content["counters"]["sdk_requests"] == 8
+    assert aws.calls == [("aws.cloudformation.project_inventory", {})]
 
 
 def test_tool_call_returns_structured_content(http_client: TestClient) -> None:
@@ -177,6 +332,8 @@ def test_external_tools_require_prepare_then_exact_confirmation() -> None:
         assert names == {
             "diagnostico",
             "listar_inventario_aws",
+            "listar_recursos_proyecto_aws",
+            "buscar_recursos_aws",
             "preparar_mensaje_telegram",
             "enviar_mensaje_telegram",
             "preparar_tarjeta_trello",
@@ -215,6 +372,60 @@ def test_external_tools_require_prepare_then_exact_confirmation() -> None:
     assert content["status"] == "ok"
     assert content["counters"]["external_writes_attempted"] == 1
     assert telegram.calls == [("owner", "hello")]
+
+
+def test_cost_explorer_tools_are_opt_in_and_require_confirmation() -> None:
+    ce = FakeCostExplorerAdapter()
+    app = create_app(
+        allowed_hosts=("testserver",),
+        include_cost_explorer=True,
+        aws_cost_explorer_adapter=ce,
+        confirmations=ConfirmationGuard(),
+    )
+    args = {
+        "start_date": "2026-01-01",
+        "end_date": "2026-01-02",
+        "granularity": "DAILY",
+        "group_by": "SERVICE",
+    }
+
+    with TestClient(app) as client:
+        body, headers = modern_request("tools/list")
+        listing = client.post("/mcp", json=body, headers=headers)
+        names = {tool["name"] for tool in response_json(listing)["result"]["tools"]}
+        assert "preparar_consulta_costes_aws" in names
+        assert "consultar_costes_aws" in names
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "preparar_consulta_costes_aws",
+                "arguments": args,
+            },
+            name="preparar_consulta_costes_aws",
+        )
+        prepared = client.post("/mcp", json=body, headers=headers)
+        preview = response_json(prepared)["result"]["structuredContent"]
+        assert preview["status"] == "confirmation_required"
+        assert preview["data"]["preview"]["max_cost_usd"] == "0.01"
+        assert ce.calls == []
+        token = preview["confirmation"]["token"]
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "consultar_costes_aws",
+                "arguments": {**args, "confirmation": token},
+            },
+            name="consultar_costes_aws",
+        )
+        executed = client.post("/mcp", json=body, headers=headers)
+        content = response_json(executed)["result"]["structuredContent"]
+
+    assert content["status"] == "ok"
+    assert content["counters"]["sdk_requests"] == 1
+    assert content["counters"]["external_writes_attempted"] == 0
+    assert len(ce.calls) == 1
 
 
 def test_unknown_tool_is_a_protocol_error_result(http_client: TestClient) -> None:

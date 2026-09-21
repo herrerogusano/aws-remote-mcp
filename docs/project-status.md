@@ -2,6 +2,126 @@
 
 Region: `eu-west-1`
 
+## Multi-client increment
+
+On 2026-09-09 the target was clarified as a public portfolio MCP that users can
+connect from multiple AI clients. The provider-neutral OAuth increment merged
+through PR #39. WorkOS AuthKit is selected for CIMD/DCR onboarding, the AWS
+template accepts independent OAuth issuer and authorization-server inputs, and
+Lambda no longer assumes Cognito's private `token_use` claim. Exact issuer,
+audience, subject and scope checks remain in place. A read-only metadata
+validator and bounded external-OAuth opening profile are included.
+
+The free WorkOS staging environment was configured with self-service signup,
+CIMD, DCR and the exact DEV resource indicator. Its public OAuth and OIDC
+metadata passed the local capability preflight. The profile was then deployed to
+DEV through a reviewed non-replacing CloudFormation change set. The deployment
+completed `UPDATE_COMPLETE`; subsequent reads confirmed the API disabled,
+Lambda concurrency zero, WorkOS issuer, exact resource audience, `openid` scope,
+and zero alarms or schedules.
+
+On 2026-09-16 Codex registered through the WorkOS CIMD/DCR-compatible flow,
+completed OAuth and discovered the remote tools. A bounded DEV window then ran
+`diagnostico` and `listar_inventario_aws`: both returned `ok`; the inventory used
+two SDK reads, returned 13 resources and attempted zero external writes. Telegram
+and Trello were not called. DEV was closed immediately afterward and the audit
+confirmed the API disabled and Lambda concurrency zero. PROD remains unchanged
+and closed.
+
+## Complete project inventory increment
+
+The bounded Resource Explorer search remains available for discovery, but it is
+no longer used to answer an exhaustive project-ownership question. The separate
+`listar_recursos_proyecto_aws` tool reads the direct resources managed by the
+four fixed application and authentication stacks in DEV and PROD. It follows
+CloudFormation pagination internally and returns `complete=true` only when every
+stack finishes without malformed pages, repeated tokens, duplicates, errors or
+defensive-cap truncation.
+
+The increment merged through PR #52 and was deployed to closed DEV on
+2026-09-17. The reviewed change set modified only the MCP Lambda code and added
+`cloudformation:ListStackResources` on the four exact stack ARN patterns. The
+live validation returned `complete=true`, 47 resources and four SDK reads with
+zero writes. A subsequently confirmed visual flow sent one Telegram summary and
+created one Trello evidence card; both provider writes completed once. The
+closing audit confirmed the API disabled, reserved concurrency zero and no
+remaining alarm or schedule.
+
+## Resource Explorer increment
+
+The Resource Explorer read-only increment is implemented, merged and deployed
+to closed DEV. It adds `buscar_recursos_aws` over one dedicated Resource Explorer
+view, with a restricted positive query grammar, one request, no pagination,
+at most 50 sanitized resources and no account IDs, full ARNs, properties or
+tags in results or audit records. The template default remains empty, so PROD
+and new deployments do not receive the capability implicitly.
+
+On 2026-09-16 a local `eu-west-1` index was created and promoted to the account's
+aggregator. A dedicated unfiltered DEV view was created without included tag
+properties or default-view association. It aggregates only regions with an
+existing local index; other regions remain outside its complete coverage. A
+reviewed non-replacing change set added the exact-view `Search` permission and
+Lambda environment value while the API and compute stayed closed.
+
+Closed-API direct Lambda validation then discovered the new tool and returned
+five bounded Lambda matches through one SDK read, with no warnings, errors or
+external-write attempts. This proved that `Search` alone is sufficient for the
+runtime; `GetView` was not added. The structured CloudWatch record contained one
+SDK request, five resources and zero writes without arguments or result data.
+Cleanup confirmed API disablement, Lambda concurrency zero, no alarm and no
+schedule. Cost Explorer is not part of this increment.
+
+## Cost Explorer increment
+
+The Cost Explorer capability is implemented, verified offline and validated in
+closed DEV. It is hidden unless `EnableCostExplorer=true`; the template default
+and PROD value remain false.
+Preparation validates an explicit date range of at most 31 days, `DAILY` or
+`MONTHLY` granularity, and one `SERVICE` or `REGION` grouping without making a
+Cost Explorer request.
+
+Execution requires the exact five-minute, caller-bound, single-use confirmation
+and consumes it before one `GetCostAndUsage` request. The adapter uses the
+account's exact primary billing view, `UnblendedCost` in USD, `us-east-1`, no
+automatic retry and no pagination. A returned page token is discarded and
+reported only as truncation; output is sanitized and capped at 31 periods and
+100 groups. The current published API price is `$0.01` per request/page. An
+atomic global counter in the confirmation table permits at most three attempts
+per UTC month, so this MCP can initiate at most `$0.03` of those API requests in
+one month. Failed downstream attempts consume a slot, and unavailable quota
+state fails closed before AWS.
+
+The template adds no Cost Explorer resource or account-level activation. Its
+conditional IAM statement contains only `ce:GetCostAndUsage`. AWS evaluated the
+first closed DEV request against its service-operation ARN instead of the
+request's primary billing-view ARN, so that single action requires
+`Resource: "*"`; the adapter still fixes `BillingViewArn` to the exact primary
+view. The implementation reuses the on-demand confirmation table.
+
+On 2026-09-16 a reviewed non-replacing change set deployed the opt-in to DEV.
+Processed-template comparison showed real changes only to the MCP Lambda, its
+execution role and the existing confirmation table. Post-deployment reads
+confirmed `UPDATE_COMPLETE`, API disablement, reserved concurrency zero, the
+single exact Cost Explorer action, the primary-view environment binding, one
+read/two write table maximums, and zero alarms or schedules.
+
+The first confirmed query on 2026-09-16 made exactly one SDK request and AWS
+rejected it before returning cost data because the role scoped that action to
+the billing-view ARN while AWS authorized it against the service-operation ARN.
+The failed request consumed one of the three September quota slots and can cost
+at most `$0.01`. Cleanup restored API disablement and reserved concurrency zero,
+with no remaining alarm or schedule. The IAM correction keeps the action list
+unchanged and broadens only that action's resource element.
+
+After deploying that correction through a change set whose only effective
+property change was the execution-role policy, a second confirmed query passed
+on 2026-09-17. It made exactly one paid SDK request, returned one monthly period
+with 18 sanitized service groups, emitted no warnings or errors and attempted no
+external write. The September quota counter became two of three: one rejected
+request and one successful request, for a maximum API-request charge of `$0.02`.
+The independent closing audit again confirmed API disablement, reserved
+concurrency zero, no alarm and no schedule.
+
 ## Current state
 
 The application core, local Streamable HTTP transport, authorization contract
@@ -126,10 +246,11 @@ The confirmed Telegram and Trello integration profile is deployed in closed
 DEV. The Standard SecureString exists at the valid, non-reserved path
 `/portfolio/aws-remote-mcp/dev/integrations`; its temporary DPAPI-encrypted local
 handoff was deleted after provisioning. The on-demand confirmation table is
-active, encrypted, TTL-enabled and capped at one read and write request unit per
-second. Its exact three DynamoDB actions and the exact SSM `GetParameter` resource
-were independently audited. API Gateway remains disabled, Lambda concurrency is
-zero and route throttling remains one request per second with burst one.
+active, encrypted, TTL-enabled and capped at one read request unit and two write
+request units per second. Its exact three DynamoDB actions and the exact SSM
+`GetParameter` resource were independently audited. API Gateway remains
+disabled, Lambda concurrency is zero and route throttling remains one request
+per second with burst one.
 
 The first real external validation completed through direct Lambda invocation
 while API Gateway remained disabled. Exactly one confirmed Telegram message and

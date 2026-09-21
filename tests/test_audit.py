@@ -1,5 +1,7 @@
 """Structured audit records expose only an explicit safe schema."""
 
+from typing import Any, cast
+
 import pytest
 
 from aws_remote_mcp.core.audit import build_tool_audit_record
@@ -54,6 +56,103 @@ def test_audit_record_omits_payload_confirmation_and_provider_data() -> None:
         },
     }
     assert secret not in str(record)
+
+
+def test_resource_explorer_audit_uses_only_allowlisted_metadata_and_counters() -> None:
+    query = "service:lambda region:eu-west-1"
+    account_id = "123456789012"
+    raw_arn = f"arn:aws:lambda:eu-west-1:{account_id}:function:private"
+    result = ToolResult(
+        status="ok",
+        data={
+            "query": query,
+            "resources": [{"resource_id": "function:private"}],
+            "provider_response": {"Arn": raw_arn, "OwningAccountId": account_id},
+        },
+        counters=OperationCounters(sdk_requests=1, resources=1),
+    )
+
+    record = build_tool_audit_record(
+        tool="buscar_recursos_aws",
+        result=result,
+        caller=CallerContext("https://issuer.example", "caller-1"),
+        environment="dev",
+        request_id="request-2",
+    )
+
+    assert record["tool"] == "buscar_recursos_aws"
+    assert record["status"] == "ok"
+    assert record["counters"] == {
+        "sdk_requests": 1,
+        "resources": 1,
+        "external_writes_attempted": 0,
+        "external_writes_succeeded": 0,
+    }
+    assert query not in str(record)
+    assert account_id not in str(record)
+    assert raw_arn not in str(record)
+
+
+def test_project_inventory_tool_is_audited_without_result_data() -> None:
+    result = ToolResult(
+        status="ok",
+        data={"resources": [{"physical_id": "must-not-appear"}]},
+        counters=OperationCounters(sdk_requests=4, resources=47),
+    )
+
+    record = build_tool_audit_record(
+        tool="listar_recursos_proyecto_aws",
+        result=result,
+        caller=CallerContext("https://issuer.example", "caller-1"),
+        environment="dev",
+        request_id="project-inventory-1",
+    )
+
+    assert record["tool"] == "listar_recursos_proyecto_aws"
+    assert record["counters"] == {
+        "sdk_requests": 4,
+        "resources": 47,
+        "external_writes_attempted": 0,
+        "external_writes_succeeded": 0,
+    }
+    assert "must-not-appear" not in str(record)
+
+
+def test_cost_explorer_audit_omits_query_results_view_arn_and_confirmation() -> None:
+    query = "2026-01-01/2026-01-02"
+    account_id = "123456789012"
+    view_arn = f"arn:aws:billing::{account_id}:billingview/primary"
+    token = "opaque-confirmation-token"
+    result = ToolResult(
+        status="ok",
+        data={
+            "results_by_time": [{"total_usd": "0.01", "groups": [{"key": account_id}]}],
+            "billing_view_arn": view_arn,
+        },
+        counters=OperationCounters(sdk_requests=1, resources=1),
+        confirmation=ConfirmationMetadata(
+            token=token,
+            action="aws.cost_explorer.get_cost_and_usage",
+            payload_digest="digest",
+            expires_at="2026-09-16T17:00:00+00:00",
+        ),
+    )
+
+    record = build_tool_audit_record(
+        tool="consultar_costes_aws",
+        result=result,
+        caller=CallerContext("https://issuer.example", "caller-1"),
+        environment="dev",
+        request_id="cost-request-1",
+    )
+
+    assert record["tool"] == "consultar_costes_aws"
+    counters = cast("dict[str, Any]", record["counters"])
+    assert counters["sdk_requests"] == 1
+    assert query not in str(record)
+    assert account_id not in str(record)
+    assert view_arn not in str(record)
+    assert token not in str(record)
 
 
 @pytest.mark.parametrize(

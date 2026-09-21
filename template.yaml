@@ -9,18 +9,22 @@ Parameters:
     AllowedValues:
       - dev
       - prod
-  CognitoIssuer:
+  OAuthIssuer:
     Type: String
-    Description: Exact issuer URL of the dedicated Cognito user pool.
-    AllowedPattern: "^https://cognito-idp\\.eu-west-1\\.amazonaws\\.com/eu-west-1_[A-Za-z0-9]+$"
+    Description: Exact HTTPS JWT issuer advertised by the authorization server.
+    AllowedPattern: "^https://[^?#]+$"
+  OAuthAuthorizationServer:
+    Type: String
+    Description: Exact HTTPS OAuth authorization-server issuer used for MCP discovery.
+    AllowedPattern: "^https://[^?#]+$"
   McpTokenAudience:
     Type: String
     Description: Exact audience required in access tokens for this MCP endpoint.
     AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp$"
   McpRequiredScope:
     Type: String
-    Description: Exact resource-bound scope required for MCP access.
-    AllowedPattern: "^https://[a-z0-9]+\\.execute-api\\.eu-west-1\\.amazonaws\\.com/mcp/use$"
+    Description: Exact OAuth scope required in addition to the resource audience.
+    AllowedPattern: "^[A-Za-z0-9:/._-]+$"
   EnableExternalIntegrations:
     Type: String
     Default: "false"
@@ -28,14 +32,31 @@ Parameters:
       - "false"
       - "true"
     Description: Create bounded confirmation state and expose confirmed writes.
+  EnableCostExplorer:
+    Type: String
+    Default: "false"
+    AllowedValues:
+      - "false"
+      - "true"
+    Description: Grant one primary-billing-view cost read and expose its confirmed tool.
   IntegrationConfigParameterName:
     Type: String
     Default: /portfolio/aws-remote-mcp/dev/integrations
     AllowedPattern: "^/portfolio/aws-remote-mcp/(dev|prod)/[a-z0-9-]+$"
     Description: Exact Standard SecureString parameter containing integration config.
+  ResourceExplorerViewArn:
+    Type: String
+    Default: ""
+    AllowedPattern: "^$|^arn:aws:resource-explorer-2:eu-west-1:[0-9]{12}:view/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9-]{1,64}$"
+    Description: Optional exact ARN of a pre-existing Resource Explorer view in eu-west-1; empty disables Resource Explorer search.
 
 Conditions:
   ExternalIntegrationsEnabled: !Equals [!Ref EnableExternalIntegrations, "true"]
+  CostExplorerEnabled: !Equals [!Ref EnableCostExplorer, "true"]
+  PersistentConfirmationEnabled: !Or
+    - !Condition ExternalIntegrationsEnabled
+    - !Condition CostExplorerEnabled
+  ResourceExplorerViewConfigured: !Not [!Equals [!Ref ResourceExplorerViewArn, ""]]
 
 Globals:
   Function:
@@ -111,8 +132,37 @@ Resources:
                 Effect: Allow
                 Action: apigateway:GET
                 Resource: !Sub "arn:${AWS::Partition}:apigateway:${AWS::Region}::/apis"
+              - Sid: ListExactProjectStackResources
+                Effect: Allow
+                Action: cloudformation:ListStackResources
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-dev/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-prod/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-auth-dev/*"
+                  - !Sub "arn:${AWS::Partition}:cloudformation:eu-west-1:${AWS::AccountId}:stack/aws-remote-mcp-auth-prod/*"
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: eu-west-1
               - !If
-                - ExternalIntegrationsEnabled
+                - ResourceExplorerViewConfigured
+                - Sid: SearchOnlyConfiguredResourceExplorerView
+                  Effect: Allow
+                  Action: resource-explorer-2:Search
+                  Resource: !Ref ResourceExplorerViewArn
+                  Condition:
+                    StringEquals:
+                      aws:RequestedRegion: eu-west-1
+                      resource-explorer-2:Operation: Search
+                - !Ref AWS::NoValue
+              - !If
+                - CostExplorerEnabled
+                - Sid: ReadPrimaryBillingViewCostAndUsage
+                  Effect: Allow
+                  Action: ce:GetCostAndUsage
+                  Resource: "*"
+                - !Ref AWS::NoValue
+              - !If
+                - PersistentConfirmationEnabled
                 - Sid: PersistOnlyMcpConfirmations
                   Effect: Allow
                   Action:
@@ -152,15 +202,15 @@ Resources:
         paths: {}
       Auth:
         Authorizers:
-          CognitoJwtAuthorizer:
+          OAuthJwtAuthorizer:
             AuthorizationScopes:
               - !Ref McpRequiredScope
             IdentitySource: "$request.header.Authorization"
             JwtConfiguration:
-              issuer: !Ref CognitoIssuer
+              issuer: !Ref OAuthIssuer
               audience:
                 - !Ref McpTokenAudience
-        DefaultAuthorizer: CognitoJwtAuthorizer
+        DefaultAuthorizer: OAuthJwtAuthorizer
       DefaultRouteSettings:
         ThrottlingBurstLimit: 1
         ThrottlingRateLimit: 1
@@ -174,7 +224,7 @@ Resources:
 
   ConfirmationTable:
     Type: AWS::DynamoDB::Table
-    Condition: ExternalIntegrationsEnabled
+    Condition: PersistentConfirmationEnabled
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -182,7 +232,7 @@ Resources:
       BillingMode: PAY_PER_REQUEST
       OnDemandThroughput:
         MaxReadRequestUnits: 1
-        MaxWriteRequestUnits: 1
+        MaxWriteRequestUnits: 2
       AttributeDefinitions:
         - AttributeName: token_digest
           AttributeType: S
@@ -221,11 +271,19 @@ Resources:
         SystemLogLevel: INFO
       Environment:
         Variables:
-          COGNITO_ISSUER: !Ref CognitoIssuer
+          OAUTH_ISSUER: !Ref OAuthIssuer
+          OAUTH_AUTHORIZATION_SERVER: !Ref OAuthAuthorizationServer
           MCP_RESOURCE_URL: !Ref McpTokenAudience
+          MCP_REQUIRED_SCOPE: !Ref McpRequiredScope
           EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
+          COST_EXPLORER_ENABLED: !Ref EnableCostExplorer
+          COST_EXPLORER_BILLING_VIEW_ARN: !If
+            - CostExplorerEnabled
+            - !Sub "arn:${AWS::Partition}:billing::${AWS::AccountId}:billingview/primary"
+            - ""
+          RESOURCE_EXPLORER_VIEW_ARN: !Ref ResourceExplorerViewArn
           CONFIRMATION_TABLE_NAME: !If
-            - ExternalIntegrationsEnabled
+            - PersistentConfirmationEnabled
             - !Ref ConfirmationTable
             - ""
           INTEGRATION_CONFIG_PARAMETER: !If
@@ -242,7 +300,7 @@ Resources:
             PayloadFormatVersion: "2.0"
             TimeoutInMillis: 10000
             Auth:
-              Authorizer: CognitoJwtAuthorizer
+              Authorizer: OAuthJwtAuthorizer
               AuthorizationScopes:
                 - !Ref McpRequiredScope
         ProtectedResourceMetadataGet:
@@ -417,7 +475,7 @@ Resources:
 
 Outputs:
   McpEndpoint:
-    Description: Closed-by-default MCP endpoint protected by Cognito JWT.
+    Description: Closed-by-default MCP endpoint protected by an OAuth JWT.
     Value: !Sub "https://${RemoteMcpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/mcp"
   ApiId:
     Description: HTTP API identifier for this environment.

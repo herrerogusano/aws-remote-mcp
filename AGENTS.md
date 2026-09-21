@@ -22,6 +22,18 @@ technically unsuitable.
 - Update `ROADMAP.md`, `docs/project-status.md` and decision records when the
   architecture or operational state changes.
 
+## Multi-agent development
+
+- The primary agent owns architecture, scope, integration review and the final
+  merge decision.
+- Prefer reusable lower-cost workers for bounded implementation, tests/QA and
+  AWS/IaC tasks. Use a frontend worker only when interface work exists.
+- Workers edit disjoint areas where practical, never merge independently and
+  report verification evidence and unresolved risks to the primary agent.
+- The primary agent reconciles contracts between workers, reviews every diff,
+  makes any required corrections and runs the complete quality gate before a
+  pull request or merge.
+
 ## Operational approvals
 
 Cost-bearing infrastructure, broader IAM, real credentials, external writes,

@@ -27,12 +27,14 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     assert '"--no-disable-execute-api-endpoint"' in script
     assert 'Get-StackOutput "DevStageName"' in script
     assert '"Name=Stage,Value=$stageName"' in script
-    assert 'Authentication    = "Cognito JWT with $expectedScope"' in script
+    assert (
+        'Authentication    = "$AuthorizationProfile JWT with $expectedScope"' in script
+    )
     assert 'AuthorizationType -ne "JWT"' in script
     assert "AuthorizationScopes[0] -ne $expectedScope" in script
     assert "SOFTWARE_TOKEN_MFA" in script
     assert "TotpEnrollmentGate" in script
-    assert "JwtConfiguration.Issuer -ne $issuer" in script
+    assert "JwtConfiguration.Issuer.TrimEnd('/') -ne $issuer.TrimEnd('/')" in script
     assert "JwtConfiguration.Audience[0] -ne $endpoint" in script
     assert "ThrottlingRateLimit -ne 1" in script
     assert "Refusing to overlap or overwrite an existing validation window" in script
@@ -49,6 +51,8 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     assert "$RequestThreshold -gt 15" in script
     assert "unreserved-account-cap-10" in script
     assert '"ce", "get-cost-and-usage"' not in script
+    assert '[ValidateSet("Cognito", "ExternalOAuth")]' in script
+    assert "validate-oauth-provider.ps1" in script
 
 
 def test_open_window_has_fail_closed_cleanup() -> None:

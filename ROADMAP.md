@@ -50,16 +50,31 @@ MCP client
   validation-window cost review.
 - Reviewed manual promotion to `main` and an isolated, empty PROD deployment
   with independent Cognito authorization and both execution gates closed.
+- WorkOS AuthKit onboarding from Codex through CIMD, PKCE and OAuth, followed by
+  successful remote diagnostics and bounded AWS inventory with zero writes.
+- Opt-in Resource Explorer search deployed and validated in closed DEV with
+  one-page bounds, sanitized identifiers and an exact-view least-privilege IAM
+  contract.
+- Exhaustive project inventory deployed and validated across the four exact
+  application/authentication DEV and PROD stacks: 47 direct resources, four
+  CloudFormation reads, `complete=true` and zero writes. The same visual flow
+  delivered a confirmed Telegram summary and Trello evidence card.
+- Opt-in Cost Explorer query implemented, verified offline and deployed to
+  closed DEV with the primary billing view fixed at runtime, five-minute
+  single-use confirmation, one-request/one-page `$0.01` execution contract and
+  a persistent three-request/`$0.03` global monthly ceiling. A live query
+  returned 18 sanitized service groups through exactly one SDK request and no
+  writes; the independent shutdown audit passed.
 
 ## Next milestones
 
-The portfolio-ready DEV implementation is complete. Optional future expansion:
+The server and Codex client validation are complete. The next portfolio steps
+remain deliberately gated:
 
-1. Consider GitHub OIDC delivery after the manual promotion process has remained
-   stable.
-2. Add a recorded demonstration while retaining the closed-by-default posture.
-3. Design a separate bounded PROD validation procedure only if live public
-   production access becomes necessary.
+1. Optionally validate onboarding from Claude or another compatible client.
+2. Decide whether a public always-on PROD demonstration is justified after its
+   abuse and cost controls are tested in DEV.
+3. Consider GitHub OIDC delivery and a recorded demonstration afterward.
 
 ## Success criteria
 

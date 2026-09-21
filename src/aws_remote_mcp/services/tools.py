@@ -9,10 +9,25 @@ from aws_remote_mcp.adapters.protocols import (
     AdapterError,
     AdapterIssue,
     AwsAdapter,
+    CostExplorerAdapter,
     TelegramAdapter,
     TrelloAdapter,
 )
 from aws_remote_mcp.core.confirmation import ConfirmationError, ConfirmationProvider
+from aws_remote_mcp.core.cost_query import (
+    COST_EXPLORER_MAX_COST_USD,
+    COST_EXPLORER_METRIC,
+    COST_EXPLORER_OPERATION,
+    CostExplorerQuery,
+    CostQueryValidationError,
+    validate_cost_explorer_query,
+)
+from aws_remote_mcp.core.cost_quota import (
+    MONTHLY_COST_REQUEST_LIMIT,
+    MONTHLY_MAX_API_COST_USD,
+    CostQuotaError,
+    CostRequestLimiter,
+)
 from aws_remote_mcp.core.models import (
     CallerContext,
     JsonValue,
@@ -35,6 +50,8 @@ class ToolService:
         operations: OperationRegistry,
         confirmations: ConfirmationProvider,
         aws: AwsAdapter,
+        aws_cost_explorer: CostExplorerAdapter | None = None,
+        cost_request_limiter: CostRequestLimiter | None = None,
         telegram: TelegramAdapter,
         trello: TrelloAdapter,
         telegram_destinations: frozenset[str],
@@ -46,6 +63,8 @@ class ToolService:
         self._operations = operations
         self._confirmations = confirmations
         self._aws = aws
+        self._aws_cost_explorer = aws_cost_explorer
+        self._cost_request_limiter = cost_request_limiter
         self._telegram = telegram
         self._trello = trello
         self._telegram_destinations = telegram_destinations
@@ -71,6 +90,170 @@ class ToolService:
         except AdapterError as error:
             return self._adapter_failure(error, counters)
         counters.sdk_requests = response.sdk_requests
+        counters.resources = response.resources
+        issues = tuple(self._adapter_issue(issue) for issue in response.issues)
+        return self._bounded_result(
+            response.data,
+            counters,
+            status=response.status,
+            issues=issues,
+        )
+
+    def prepare_aws_cost_query(
+        self,
+        caller: CallerContext,
+        start_date: str,
+        end_date: str,
+        granularity: str,
+        group_by: str,
+    ) -> ToolResult:
+        try:
+            self._operations.require_confirmed_billable(COST_EXPLORER_OPERATION)
+        except OperationBlockedError as error:
+            return ToolResult(
+                status="error",
+                errors=(ToolIssue("operation_blocked", str(error)),),
+            )
+        try:
+            query = validate_cost_explorer_query(
+                start_date, end_date, granularity, group_by
+            )
+        except CostQueryValidationError as error:
+            return ToolResult(
+                status="error", errors=(ToolIssue(error.code, str(error)),)
+            )
+        if self._aws_cost_explorer is None:
+            return ToolResult(
+                status="error",
+                errors=(
+                    ToolIssue(
+                        "cost_explorer_unavailable",
+                        "AWS Cost Explorer is not configured.",
+                    ),
+                ),
+            )
+
+        payload = self._cost_query_payload(
+            query, self._aws_cost_explorer.billing_view_arn
+        )
+        try:
+            confirmation = self._confirmations.prepare(
+                caller, COST_EXPLORER_OPERATION, payload
+            )
+        except ConfirmationError as error:
+            return ToolResult(
+                status="error", errors=(ToolIssue(error.code, str(error)),)
+            )
+        return ToolResult(
+            status="confirmation_required",
+            data={"preview": self._cost_query_preview(query)},
+            confirmation=confirmation,
+        )
+
+    def execute_aws_cost_query(
+        self,
+        caller: CallerContext,
+        token: str,
+        start_date: str,
+        end_date: str,
+        granularity: str,
+        group_by: str,
+    ) -> ToolResult:
+        try:
+            self._operations.require_confirmed_billable(COST_EXPLORER_OPERATION)
+        except OperationBlockedError as error:
+            return ToolResult(
+                status="error",
+                errors=(ToolIssue("operation_blocked", str(error)),),
+            )
+        try:
+            query = validate_cost_explorer_query(
+                start_date, end_date, granularity, group_by
+            )
+        except CostQueryValidationError as error:
+            return ToolResult(
+                status="error", errors=(ToolIssue(error.code, str(error)),)
+            )
+        if self._aws_cost_explorer is None:
+            return ToolResult(
+                status="error",
+                errors=(
+                    ToolIssue(
+                        "cost_explorer_unavailable",
+                        "AWS Cost Explorer is not configured.",
+                    ),
+                ),
+            )
+
+        payload = self._cost_query_payload(
+            query, self._aws_cost_explorer.billing_view_arn
+        )
+        counters = OperationCounters()
+        confirmation_error = self._consume_confirmation(
+            token, caller, COST_EXPLORER_OPERATION, payload
+        )
+        if confirmation_error is not None:
+            return ToolResult(
+                status="error", errors=(confirmation_error,), counters=counters
+            )
+
+        # Acquire the monthly slot only after confirmation and before the billable
+        # call. A failed downstream call still consumes this slot.
+        if self._cost_request_limiter is None:
+            return ToolResult(
+                status="error",
+                data=self._cost_quota_data(),
+                errors=(
+                    ToolIssue(
+                        "cost_quota_unavailable",
+                        "The Cost Explorer monthly quota is unavailable.",
+                    ),
+                ),
+                counters=counters,
+            )
+        try:
+            self._cost_request_limiter.acquire()
+        except CostQuotaError as error:
+            return ToolResult(
+                status="error",
+                data=self._cost_quota_data(),
+                errors=(ToolIssue(error.code, str(error)),),
+                counters=counters,
+            )
+        except Exception:
+            return ToolResult(
+                status="error",
+                data=self._cost_quota_data(),
+                errors=(
+                    ToolIssue(
+                        "cost_quota_unavailable",
+                        "The Cost Explorer monthly quota is unavailable.",
+                    ),
+                ),
+                counters=counters,
+            )
+        counters.sdk_requests = 1
+        try:
+            response = self._aws_cost_explorer.get_cost_and_usage(query)
+        except AdapterError as error:
+            return ToolResult(
+                status="error",
+                data=self._cost_quota_data(),
+                errors=(ToolIssue(error.code, str(error), retryable=error.retryable),),
+                counters=counters,
+            )
+        except Exception:
+            return ToolResult(
+                status="error",
+                data=self._cost_quota_data(),
+                errors=(
+                    ToolIssue(
+                        "cost_explorer_query_unavailable",
+                        "AWS Cost Explorer query could not be completed.",
+                    ),
+                ),
+                counters=counters,
+            )
         counters.resources = response.resources
         issues = tuple(self._adapter_issue(issue) for issue in response.issues)
         return self._bounded_result(
@@ -279,4 +462,48 @@ class ToolService:
             "list": list_name,
             "title": title,
             "description": description,
+        }
+
+    @staticmethod
+    def _cost_query_payload(
+        query: CostExplorerQuery, billing_view_arn: str
+    ) -> dict[str, JsonValue]:
+        return {
+            "start_date": query.start_date,
+            "end_date": query.end_date,
+            "granularity": query.granularity,
+            "group_by": query.group_by,
+            "metric": COST_EXPLORER_METRIC,
+            "currency": "USD",
+            "max_cost_usd": COST_EXPLORER_MAX_COST_USD,
+            "max_api_requests": 1,
+            "monthly_request_limit": MONTHLY_COST_REQUEST_LIMIT,
+            "monthly_max_api_cost_usd": MONTHLY_MAX_API_COST_USD,
+            "billing_view_arn": billing_view_arn,
+        }
+
+    @staticmethod
+    def _cost_query_preview(query: CostExplorerQuery) -> dict[str, JsonValue]:
+        return {
+            "time_period": {
+                "start": query.start_date,
+                "end": query.end_date,
+            },
+            "granularity": query.granularity,
+            "group_by": query.group_by,
+            "metric": COST_EXPLORER_METRIC,
+            "currency": "USD",
+            "max_cost_usd": COST_EXPLORER_MAX_COST_USD,
+            "max_api_requests": 1,
+            "monthly_request_limit": MONTHLY_COST_REQUEST_LIMIT,
+            "monthly_max_api_cost_usd": MONTHLY_MAX_API_COST_USD,
+            "read_only": True,
+        }
+
+    @staticmethod
+    def _cost_quota_data() -> dict[str, JsonValue]:
+        return {
+            "read_only": True,
+            "monthly_request_limit": MONTHLY_COST_REQUEST_LIMIT,
+            "monthly_max_api_cost_usd": MONTHLY_MAX_API_COST_USD,
         }

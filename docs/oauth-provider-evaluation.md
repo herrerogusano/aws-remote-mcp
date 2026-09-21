@@ -2,6 +2,11 @@
 
 Verified: 2026-08-28
 
+Update: 2026-09-09. D-031 supersedes the controlled-client choice for the public
+multi-client target. Cognito remains as historical validation infrastructure;
+WorkOS AuthKit is selected for the next DEV integration because it supports both
+CIMD and DCR, exact resource indicators and a free staging environment.
+
 ## Decision
 
 Use Amazon Cognito Plus as the first production-shaped authorization server and

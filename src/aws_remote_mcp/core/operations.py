@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from enum import StrEnum
 
+from aws_remote_mcp.core.cost_query import COST_EXPLORER_OPERATION
+
 
 class OperationClassification(StrEnum):
     FREE_VERIFIED_READ = "free_verified_read"
@@ -55,6 +57,18 @@ class OperationRegistry:
             raise OperationBlockedError(operation, classification)
         return spec
 
+    def require_confirmed_billable(self, operation: str) -> OperationSpec:
+        """Allow only explicitly confirmed operations classified as billable."""
+
+        spec = self._specs.get(operation)
+        classification = self.classify(operation)
+        if (
+            spec is None
+            or classification is not OperationClassification.CONTROLLED_BILLABLE
+        ):
+            raise OperationBlockedError(operation, classification)
+        return spec
+
 
 def build_default_registry() -> OperationRegistry:
     """Register only reviewed automatic operations; everything else fails closed."""
@@ -69,9 +83,24 @@ def build_default_registry() -> OperationRegistry:
                 "2026-09-02.",
             ),
             OperationSpec(
-                "aws.cost_explorer.get_cost_and_usage",
+                "aws.resource_explorer.search",
+                OperationClassification.FREE_VERIFIED_READ,
+                "One bounded Resource Explorer Search request; AWS documents "
+                "search as no-additional-charge, pricing reference verified "
+                "2026-09-16.",
+            ),
+            OperationSpec(
+                "aws.cloudformation.project_inventory",
+                OperationClassification.FREE_VERIFIED_READ,
+                "Paginated read-only CloudFormation resource summaries for the "
+                "fixed project stack allowlist, with defensive page/resource "
+                "caps and no write actions.",
+            ),
+            OperationSpec(
+                COST_EXPLORER_OPERATION,
                 OperationClassification.CONTROLLED_BILLABLE,
-                "Cost Explorer requests are potentially billable.",
+                "One Cost Explorer API request is billable at USD 0.01; "
+                "updated 2026-09-16 from AWS pricing documentation.",
             ),
             OperationSpec(
                 "telegram.send_message",

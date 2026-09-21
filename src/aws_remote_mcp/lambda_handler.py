@@ -10,6 +10,7 @@ from typing import Any
 
 from mangum import Mangum
 
+from aws_remote_mcp.adapters.aws_cost_explorer import AwsCostExplorerAdapter
 from aws_remote_mcp.adapters.aws_inventory import AwsInventoryAdapter
 from aws_remote_mcp.adapters.external_integrations import (
     SsmIntegrationConfigProvider,
@@ -21,6 +22,7 @@ from aws_remote_mcp.core.confirmation import (
     ConfirmationProvider,
     DynamoDbConfirmationGuard,
 )
+from aws_remote_mcp.core.cost_quota import DynamoDbCostRequestLimiter
 from aws_remote_mcp.core.models import CallerContext
 from aws_remote_mcp.http_server import create_gateway_app
 from aws_remote_mcp.security.authorization import AuthorizationConfig
@@ -50,14 +52,17 @@ def _boto_client(service: str, region: str) -> Any:
 
 
 def _external_components(
-    region: str, environment: str
+    region: str,
+    environment: str,
+    confirmations: ConfirmationProvider | None = None,
 ) -> tuple[ConfirmationProvider, TelegramAdapter, TrelloAdapter]:
-    table_name = _required_environment("CONFIRMATION_TABLE_NAME")
+    if confirmations is None:
+        table_name = _required_environment("CONFIRMATION_TABLE_NAME")
+        confirmations = DynamoDbConfirmationGuard(
+            table_name=table_name,
+            client=_boto_client("dynamodb", region),
+        )
     parameter_name = _required_environment("INTEGRATION_CONFIG_PARAMETER")
-    confirmations = DynamoDbConfirmationGuard(
-        table_name=table_name,
-        client=_boto_client("dynamodb", region),
-    )
     config = SsmIntegrationConfigProvider(
         parameter_name=parameter_name,
         environment=environment,
@@ -118,15 +123,16 @@ def _gateway_caller(
         raise RuntimeError("Validated JWT claims are missing.")
     scopes = claims.get("scope", "")
     subject = claims.get("sub")
-    required_scope = authorization.required_scopes[0]
+    required_scopes = authorization.required_scopes or ()
+    token_use = claims.get("token_use")
     if (
         claims.get("iss") != authorization.issuer_url
         or claims.get("aud") != authorization.resource_server_url
-        or claims.get("token_use") != "access"
+        or (token_use is not None and token_use != "access")
         or not isinstance(subject, str)
         or not subject
         or not isinstance(scopes, str)
-        or required_scope not in scopes.split()
+        or any(required not in scopes.split() for required in required_scopes)
     ):
         raise RuntimeError("Validated JWT claims violate the MCP contract.")
     return CallerContext(
@@ -146,8 +152,12 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
     allowed_host = _api_gateway_host(event)
     authorization = AuthorizationConfig(
-        issuer_url=_required_environment("COGNITO_ISSUER"),
+        issuer_url=_required_environment("OAUTH_ISSUER"),
         resource_server_url=_required_environment("MCP_RESOURCE_URL"),
+        authorization_server_url=_required_environment("OAUTH_AUTHORIZATION_SERVER"),
+        required_scopes=tuple(
+            scope for scope in os.environ.get("MCP_REQUIRED_SCOPE", "").split() if scope
+        ),
     )
     request_context = event.get("requestContext")
     route_key = (
@@ -163,20 +173,53 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     if external_setting not in {"true", "false"}:
         raise RuntimeError("EXTERNAL_INTEGRATIONS_ENABLED must be true or false.")
     external_enabled = external_setting == "true"
+    cost_setting = os.environ.get("COST_EXPLORER_ENABLED", "false")
+    if cost_setting not in {"true", "false"}:
+        raise RuntimeError("COST_EXPLORER_ENABLED must be true or false.")
+    cost_enabled = cost_setting == "true"
     confirmations: ConfirmationProvider | None = None
+    cost_request_limiter = None
     telegram: TelegramAdapter | None = None
     trello: TrelloAdapter | None = None
+    if cost_enabled:
+        table_name = _required_environment("CONFIRMATION_TABLE_NAME")
+        ddb_client = _boto_client("dynamodb", _required_environment("AWS_REGION"))
+        confirmations = DynamoDbConfirmationGuard(
+            table_name=table_name,
+            client=ddb_client,
+        )
+        cost_request_limiter = DynamoDbCostRequestLimiter(
+            table_name=table_name,
+            client=ddb_client,
+        )
     if external_enabled:
-        confirmations, telegram, trello = _external_components(
-            _required_environment("AWS_REGION"), environment
+        region = _required_environment("AWS_REGION")
+        if confirmations is None:
+            confirmations, telegram, trello = _external_components(region, environment)
+        else:
+            confirmations, telegram, trello = _external_components(
+                region, environment, confirmations
+            )
+    cost_explorer = None
+    if cost_enabled:
+        cost_explorer = AwsCostExplorerAdapter(
+            billing_view_arn=_required_environment("COST_EXPLORER_BILLING_VIEW_ARN")
         )
     app = create_gateway_app(
         authorization=authorization,
         allowed_hosts=(allowed_host,),
         environment=environment,
-        aws_adapter=AwsInventoryAdapter(region=_required_environment("AWS_REGION")),
+        aws_adapter=AwsInventoryAdapter(
+            region=_required_environment("AWS_REGION"),
+            resource_explorer_view_arn=(
+                os.environ.get("RESOURCE_EXPLORER_VIEW_ARN", "").strip() or None
+            ),
+        ),
         caller_provider=lambda: caller,
         include_external_writes=external_enabled,
+        include_cost_explorer=cost_enabled,
+        aws_cost_explorer_adapter=cost_explorer,
+        cost_request_limiter=cost_request_limiter,
         confirmations=confirmations,
         telegram_adapter=telegram,
         trello_adapter=trello,

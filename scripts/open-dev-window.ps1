@@ -7,6 +7,10 @@ param(
     [string]$StackName = "aws-remote-mcp-dev",
     [string]$AuthStackName = "aws-remote-mcp-auth-dev",
     [string]$Username = "portfolio-admin",
+    [ValidateSet("Cognito", "ExternalOAuth")]
+    [string]$AuthorizationProfile = "Cognito",
+    [string]$AuthorizationServer = "",
+    [string]$RequiredScope = "",
     [switch]$UseUnreservedConcurrency,
     [string]$Region = "eu-west-1"
 )
@@ -44,7 +48,15 @@ function Get-StackOutput {
 $apiId = Get-StackOutput "DevApiId"
 $stageName = Get-StackOutput "DevStageName"
 $endpoint = Get-StackOutput "DevMcpEndpoint"
-$expectedScope = "$endpoint/use"
+$expectedScope = if ($AuthorizationProfile -eq "Cognito") {
+    "$endpoint/use"
+}
+else {
+    $RequiredScope
+}
+if ([string]::IsNullOrWhiteSpace($expectedScope)) {
+    throw "External OAuth requires an explicit scope"
+}
 $functionName = Get-StackOutput "DevFunctionName"
 $shutdownArn = Get-StackOutput "SafetyShutdownFunctionArn"
 $schedulerRoleArn = Get-StackOutput "SafetyShutdownSchedulerRoleArn"
@@ -95,38 +107,55 @@ if (
     throw "Refusing to open from an unexpected API, compute or JWT state"
 }
 
-$auth = Invoke-AwsCli @(
-    "cloudformation", "describe-stacks", "--stack-name", $AuthStackName,
-    "--region", $Region, "--output", "json"
-) | ConvertFrom-Json
-$authOutputs = $auth.Stacks[0].Outputs
-$poolId = ($authOutputs | Where-Object OutputKey -eq "UserPoolId").OutputValue
-$clientId = ($authOutputs | Where-Object OutputKey -eq "InspectorClientId").OutputValue
-$issuer = ($authOutputs | Where-Object OutputKey -eq "Issuer").OutputValue
-$requiredScope = ($authOutputs | Where-Object OutputKey -eq "RequiredScope").OutputValue
-$gate = ($authOutputs | Where-Object OutputKey -eq "TotpEnrollmentGate").OutputValue
-$client = Invoke-AwsCli @(
-    "cognito-idp", "describe-user-pool-client", "--user-pool-id", $poolId,
-    "--client-id", $clientId, "--region", $Region, "--output", "json"
-) | ConvertFrom-Json
-$user = Invoke-AwsCli @(
-    "cognito-idp", "admin-get-user", "--user-pool-id", $poolId,
-    "--username", $Username, "--region", $Region, "--output", "json"
-) | ConvertFrom-Json
+if ($AuthorizationProfile -eq "Cognito") {
+    $auth = Invoke-AwsCli @(
+        "cloudformation", "describe-stacks", "--stack-name", $AuthStackName,
+        "--region", $Region, "--output", "json"
+    ) | ConvertFrom-Json
+    $authOutputs = $auth.Stacks[0].Outputs
+    $poolId = ($authOutputs | Where-Object OutputKey -eq "UserPoolId").OutputValue
+    $clientId = ($authOutputs | Where-Object OutputKey -eq "InspectorClientId").OutputValue
+    $issuer = ($authOutputs | Where-Object OutputKey -eq "Issuer").OutputValue
+    $requiredScope = ($authOutputs | Where-Object OutputKey -eq "RequiredScope").OutputValue
+    $gate = ($authOutputs | Where-Object OutputKey -eq "TotpEnrollmentGate").OutputValue
+    $client = Invoke-AwsCli @(
+        "cognito-idp", "describe-user-pool-client", "--user-pool-id", $poolId,
+        "--client-id", $clientId, "--region", $Region, "--output", "json"
+    ) | ConvertFrom-Json
+    $user = Invoke-AwsCli @(
+        "cognito-idp", "admin-get-user", "--user-pool-id", $poolId,
+        "--username", $Username, "--region", $Region, "--output", "json"
+    ) | ConvertFrom-Json
+    if (
+        $gate -ne "false" -or
+        $requiredScope -ne $expectedScope -or
+        @($client.UserPoolClient.AllowedOAuthScopes).Count -ne 1 -or
+        $client.UserPoolClient.AllowedOAuthScopes[0] -ne $expectedScope -or
+        $user.UserStatus -ne "CONFIRMED" -or
+        @($user.UserMFASettingList) -notcontains "SOFTWARE_TOKEN_MFA"
+    ) {
+        throw "Refusing to open without the exact closed Cognito and TOTP state"
+    }
+}
+else {
+    if ([string]::IsNullOrWhiteSpace($AuthorizationServer)) {
+        throw "External OAuth requires an authorization-server URL"
+    }
+    $issuer = $AuthorizationServer.TrimEnd('/')
+    & "$PSScriptRoot\validate-oauth-provider.ps1" `
+        -AuthorizationServer $issuer `
+        -Resource $endpoint `
+        -RequiredScope $expectedScope | Out-Null
+}
+
 if (
-    $gate -ne "false" -or
-    $requiredScope -ne $expectedScope -or
-    @($client.UserPoolClient.AllowedOAuthScopes).Count -ne 1 -or
-    $client.UserPoolClient.AllowedOAuthScopes[0] -ne $expectedScope -or
-    $user.UserStatus -ne "CONFIRMED" -or
-    @($user.UserMFASettingList) -notcontains "SOFTWARE_TOKEN_MFA" -or
     @($jwtAuthorizer).Count -ne 1 -or
     $jwtAuthorizer.AuthorizerType -ne "JWT" -or
-    $jwtAuthorizer.JwtConfiguration.Issuer -ne $issuer -or
+    $jwtAuthorizer.JwtConfiguration.Issuer.TrimEnd('/') -ne $issuer.TrimEnd('/') -or
     @($jwtAuthorizer.JwtConfiguration.Audience).Count -ne 1 -or
     $jwtAuthorizer.JwtConfiguration.Audience[0] -ne $endpoint
 ) {
-    throw "Refusing to open without the exact closed Cognito and TOTP state"
+    throw "Refusing to open without the exact OAuth issuer and resource audience"
 }
 
 $existingAlarms = Invoke-AwsCli @(
@@ -256,7 +285,7 @@ catch {
     OpenedAtUtc       = [DateTime]::UtcNow.ToString("O")
     AutomaticCloseUtc = $closeAt.ToString("O")
     RequestTripwire   = $RequestThreshold
-    Authentication    = "Cognito JWT with $expectedScope"
+    Authentication    = "$AuthorizationProfile JWT with $expectedScope"
     ConcurrencyMode   = if ($UseUnreservedConcurrency) { "unreserved-account-cap-10" } else { "reserved-1" }
     ScheduleName      = $scheduleName
 }

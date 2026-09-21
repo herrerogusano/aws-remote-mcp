@@ -80,6 +80,51 @@ not claim that the API Gateway IAM data path has been validated.
 
 - https://aws.amazon.com/lambda/pricing/
 
+## First Cost Explorer request
+
+Date: 2026-09-16
+
+Regions: application in `eu-west-1`; Cost Explorer endpoint in `us-east-1`
+
+The confirmed validation consumed one September quota slot and issued exactly
+one `GetCostAndUsage` SDK request. AWS rejected it with `AccessDenied` before
+returning cost data because the execution role allowed the action only on the
+primary billing-view ARN while AWS evaluated the request against its
+service-operation ARN. The request can incur at most `$0.01`; no retry was made.
+
+The structured audit record reported `error`, one SDK request and zero external
+writes. The independent closing audit confirmed that the API remained disabled,
+Lambda reserved concurrency returned to zero, and no temporary alarm or schedule
+remained. The monthly counter was exactly one of three. The corrective IAM
+change keeps `ce:GetCostAndUsage` as the only Cost Explorer action and uses
+`Resource: "*"`; the adapter continues to require and send the exact primary
+billing-view ARN.
+
+## Successful Cost Explorer validation
+
+Date: 2026-09-17
+
+The IAM correction was deployed through a reviewed change set. CloudFormation's
+property-level comparison showed that its only effective change was the resource
+element of the existing `ce:GetCostAndUsage` statement; application code, API,
+Lambda configuration and every other permission were unchanged.
+
+The next confirmed validation succeeded with exactly one paid SDK request. It
+returned one monthly period containing 18 sanitized `SERVICE` groups, without
+warnings, errors, pagination, retries or external writes. Together with the
+earlier rejected request, the persistent September quota counter is two of
+three, representing a maximum Cost Explorer API-request charge of `$0.02`.
+
+The independent post-validation audit confirmed:
+
+- API default endpoint disabled: `true`;
+- Lambda reserved concurrency: `0`;
+- temporary request alarm count: `0`;
+- automatic-close schedule count: `0`;
+- audit status: `ok`;
+- SDK requests: `1`;
+- external writes attempted and completed: `0`.
+
 ## Confirmed external integration validation
 
 Date: 2026-09-08  
@@ -119,5 +164,34 @@ Verified closing state:
 - CloudFormation stack: `UPDATE_COMPLETE`;
 - API default endpoint disabled: `true` throughout;
 - MCP Lambda reserved concurrency: `0` after validation;
+- temporary request alarm count: `0`;
+- automatic-close schedule count: `0`.
+
+## Complete project inventory and visual evidence
+
+Date: 2026-09-17
+
+The exact project inventory was deployed through a reviewed change set whose
+only effective changes were MCP Lambda code and one read-only execution-role
+statement. The role can call only `cloudformation:ListStackResources` on the
+four exact application/authentication DEV and PROD stack ARN patterns; it cannot
+list account stacks, describe arbitrary stacks or mutate CloudFormation.
+
+Closed direct validation produced `complete=true` for all 47 direct managed
+resources through four SDK requests, one per stack. It emitted no warnings or
+errors and made no external write during discovery. The result distinguishes
+this authoritative stack inventory from the intentionally bounded and
+eventually consistent Resource Explorer search.
+
+After explicit payload confirmation, the same visual validation sent one
+Telegram summary and created one Trello evidence card. Structured audit records
+showed exactly one attempted and one successful provider write for each tool;
+they contained no payload, provider response, account identifier or resource
+details.
+
+The independent closing audit confirmed:
+
+- API default endpoint disabled: `true`;
+- Lambda reserved concurrency: `0`;
 - temporary request alarm count: `0`;
 - automatic-close schedule count: `0`.
