@@ -4,6 +4,8 @@ param(
     [int]$WindowMinutes = 5,
     [ValidateRange(1, 20)]
     [int]$RequestThreshold = 20,
+    [ValidateSet(1)]
+    [int]$ReservedConcurrency = 1,
     [string]$StackName = "aws-remote-mcp-dev",
     [string]$AuthStackName = "aws-remote-mcp-auth-dev",
     [string]$Username = "portfolio-admin",
@@ -21,11 +23,19 @@ $alarmName = "aws-remote-mcp-dev-request-kill-switch"
 function Invoke-AwsCli {
     param([Parameter(Mandatory)][string[]]$Arguments)
 
-    $result = & aws @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "AWS CLI failed: aws $($Arguments -join ' ')"
+    $stderrPath = [IO.Path]::GetTempFileName()
+    try {
+        $result = & aws @Arguments 2> $stderrPath
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            $operation = @($Arguments | Select-Object -First 2) -join " "
+            throw "AWS CLI failed during allowlisted operation: $operation"
+        }
+        return $result
     }
-    return $result
+    finally {
+        Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
+    }
 }
 
 function Get-StackOutput {
@@ -197,43 +207,69 @@ if ($UseUnreservedConcurrency) {
         throw "Unreserved fallback requires the reviewed regional concurrency cap of 10"
     }
 }
+else {
+    # Lambda must retain at least one hundred unreserved executions after applying
+    # this function's reservation. Other reservations are already reflected in
+    # UnreservedConcurrentExecutions. The shutdown function uses that shared pool,
+    # so operational review must also account for concurrent unreserved workloads.
+    $quota = Invoke-AwsCli @(
+        "service-quotas", "get-service-quota",
+        "--service-code", "lambda",
+        "--quota-code", "L-B99A9384",
+        "--region", $Region,
+        "--output", "json"
+    ) | ConvertFrom-Json
+    $accountSettings = Invoke-AwsCli @(
+        "lambda", "get-account-settings",
+        "--region", $Region,
+        "--output", "json"
+    ) | ConvertFrom-Json
+    $minimumRegionalCapacity = 100 + $ReservedConcurrency
+    if (
+        $quota.Quota.Value -lt $minimumRegionalCapacity -or
+        $accountSettings.AccountLimit.ConcurrentExecutions -lt $minimumRegionalCapacity -or
+        $accountSettings.AccountLimit.UnreservedConcurrentExecutions -lt $minimumRegionalCapacity
+    ) {
+        throw "Reserved concurrency requires verified regional and unreserved capacity of at least $minimumRegionalCapacity"
+    }
+}
 
 $closeAt = [DateTime]::UtcNow.AddMinutes($WindowMinutes)
 $scheduleName = "aws-remote-mcp-dev-auto-close-$($closeAt.ToString('yyyyMMddHHmmss'))"
 $target = "Arn=$shutdownArn,RoleArn=$schedulerRoleArn,Input='{}'"
 
-# The independent AWS-side closure is installed before either execution surface opens.
-Invoke-AwsCli @(
-    "scheduler", "create-schedule",
-    "--name", $scheduleName,
-    "--group-name", $scheduleGroup,
-    "--region", $Region,
-    "--schedule-expression", "at($($closeAt.ToString('yyyy-MM-ddTHH:mm:ss')))",
-    "--schedule-expression-timezone", "UTC",
-    "--flexible-time-window", "Mode=OFF",
-    "--target", $target,
-    "--action-after-completion", "DELETE"
-) | Out-Null
-
-# A request-volume tripwire closes the window before the scheduled deadline.
-Invoke-AwsCli @(
-    "cloudwatch", "put-metric-alarm",
-    "--alarm-name", $alarmName,
-    "--region", $Region,
-    "--namespace", "AWS/ApiGateway",
-    "--metric-name", "Count",
-    "--dimensions", "Name=ApiId,Value=$apiId", "Name=Stage,Value=$stageName",
-    "--statistic", "Sum",
-    "--period", "60",
-    "--evaluation-periods", "1",
-    "--datapoints-to-alarm", "1",
-    "--threshold", "$RequestThreshold",
-    "--comparison-operator", "GreaterThanOrEqualToThreshold",
-    "--treat-missing-data", "notBreaching",
-    "--alarm-actions", $topicArn
-) | Out-Null
-
 try {
+    # Install independent AWS-side closure before either execution surface opens.
+    Invoke-AwsCli @(
+        "scheduler", "create-schedule",
+        "--name", $scheduleName,
+        "--group-name", $scheduleGroup,
+        "--region", $Region,
+        "--schedule-expression", "at($($closeAt.ToString('yyyy-MM-ddTHH:mm:ss')))",
+        "--schedule-expression-timezone", "UTC",
+        "--flexible-time-window", "Mode=OFF",
+        "--target", $target,
+        "--action-after-completion", "DELETE"
+    ) | Out-Null
+
+    # A request-volume tripwire closes the window before the scheduled deadline.
+    Invoke-AwsCli @(
+        "cloudwatch", "put-metric-alarm",
+        "--alarm-name", $alarmName,
+        "--region", $Region,
+        "--namespace", "AWS/ApiGateway",
+        "--metric-name", "Count",
+        "--dimensions", "Name=ApiId,Value=$apiId", "Name=Stage,Value=$stageName",
+        "--statistic", "Sum",
+        "--period", "60",
+        "--evaluation-periods", "1",
+        "--datapoints-to-alarm", "1",
+        "--threshold", "$RequestThreshold",
+        "--comparison-operator", "GreaterThanOrEqualToThreshold",
+        "--treat-missing-data", "notBreaching",
+        "--alarm-actions", $topicArn
+    ) | Out-Null
+
     if ($UseUnreservedConcurrency) {
         Invoke-AwsCli @(
             "lambda", "delete-function-concurrency",
@@ -245,7 +281,7 @@ try {
         Invoke-AwsCli @(
             "lambda", "put-function-concurrency",
             "--function-name", $functionName,
-            "--reserved-concurrent-executions", "1",
+            "--reserved-concurrent-executions", "$ReservedConcurrency",
             "--region", $Region
         ) | Out-Null
     }
@@ -267,18 +303,89 @@ try {
         $null -ne $openedConcurrency.ReservedConcurrentExecutions
     }
     else {
-        $openedConcurrency.ReservedConcurrentExecutions -ne 1
+        $openedConcurrency.ReservedConcurrentExecutions -ne $ReservedConcurrency
     }
     if ($openedApi.DisableExecuteApiEndpoint -or $unexpectedConcurrency) {
         throw "The bounded window did not reach its exact open state"
     }
 }
 catch {
-    & aws apigatewayv2 update-api --api-id $apiId --disable-execute-api-endpoint --region $Region | Out-Null
-    & aws lambda put-function-concurrency --function-name $functionName --reserved-concurrent-executions 0 --region $Region | Out-Null
-    & aws cloudwatch delete-alarms --alarm-names $alarmName --region $Region | Out-Null
-    & aws scheduler delete-schedule --name $scheduleName --group-name $scheduleGroup --region $Region | Out-Null
-    throw
+    $openingFailure = $_
+    $cleanupFailures = [Collections.Generic.List[string]]::new()
+    try {
+        Invoke-AwsCli @(
+            "apigatewayv2", "update-api", "--api-id", $apiId,
+            "--disable-execute-api-endpoint", "--region", $Region
+        ) | Out-Null
+    }
+    catch { }
+    try {
+        Invoke-AwsCli @(
+            "lambda", "put-function-concurrency", "--function-name", $functionName,
+            "--reserved-concurrent-executions", "0", "--region", $Region
+        ) | Out-Null
+    }
+    catch { }
+    try {
+        $closedApi = Invoke-AwsCli @(
+            "apigatewayv2", "get-api", "--api-id", $apiId,
+            "--region", $Region, "--output", "json"
+        ) | ConvertFrom-Json
+        if (-not $closedApi.DisableExecuteApiEndpoint) {
+            $cleanupFailures.Add("disable_api")
+        }
+    }
+    catch { $cleanupFailures.Add("verify_api_disabled") }
+    try {
+        $stoppedConcurrency = Invoke-AwsCli @(
+            "lambda", "get-function-concurrency", "--function-name", $functionName,
+            "--region", $Region, "--output", "json"
+        ) | ConvertFrom-Json
+        if ($stoppedConcurrency.ReservedConcurrentExecutions -ne 0) {
+            $cleanupFailures.Add("stop_lambda")
+        }
+    }
+    catch { $cleanupFailures.Add("verify_lambda_stopped") }
+    # Delete both deterministic controls even when their create response was
+    # ambiguous. Verification below distinguishes absence from cleanup failure.
+    try {
+        Invoke-AwsCli @(
+            "cloudwatch", "delete-alarms", "--alarm-names", $alarmName,
+            "--region", $Region
+        ) | Out-Null
+    }
+    catch { }
+    try {
+        Invoke-AwsCli @(
+            "scheduler", "delete-schedule", "--name", $scheduleName,
+            "--group-name", $scheduleGroup, "--region", $Region
+        ) | Out-Null
+    }
+    catch { }
+    try {
+        $remainingAlarm = Invoke-AwsCli @(
+            "cloudwatch", "describe-alarms", "--alarm-names", $alarmName,
+            "--region", $Region, "--output", "json"
+        ) | ConvertFrom-Json
+        if (@($remainingAlarm.MetricAlarms).Count -ne 0) {
+            $cleanupFailures.Add("delete_traffic_alarm")
+        }
+    }
+    catch { $cleanupFailures.Add("verify_traffic_alarm_absent") }
+    try {
+        $remainingSchedules = Invoke-AwsCli @(
+            "scheduler", "list-schedules", "--group-name", $scheduleGroup,
+            "--region", $Region, "--output", "json"
+        ) | ConvertFrom-Json
+        if (@($remainingSchedules.Schedules | Where-Object Name -eq $scheduleName).Count -ne 0) {
+            $cleanupFailures.Add("delete_auto_close_schedule")
+        }
+    }
+    catch { $cleanupFailures.Add("verify_auto_close_schedule_absent") }
+    if ($cleanupFailures.Count -gt 0) {
+        throw "Window opening failed ($openingFailure); fail-closed rollback needs attention: $($cleanupFailures -join ', ')"
+    }
+    throw $openingFailure
 }
 
 [pscustomobject]@{
@@ -286,6 +393,6 @@ catch {
     AutomaticCloseUtc = $closeAt.ToString("O")
     RequestTripwire   = $RequestThreshold
     Authentication    = "$AuthorizationProfile JWT with $expectedScope"
-    ConcurrencyMode   = if ($UseUnreservedConcurrency) { "unreserved-account-cap-10" } else { "reserved-1" }
+    ConcurrencyMode   = if ($UseUnreservedConcurrency) { "unreserved-account-cap-10" } else { "reserved-$ReservedConcurrency" }
     ScheduleName      = $scheduleName
 }

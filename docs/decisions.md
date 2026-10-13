@@ -421,3 +421,37 @@ Explorer is enabled, without enabling Telegram or Trello when only Cost
 Explorer is on. If both features are later disabled, the conditional table is
 deleted with the application stack; no Cost Explorer service resource is
 created by the template. Cost Explorer remains false in PROD.
+
+## D-034 - Reserved concurrency is the normal validation-window path
+
+This supersedes D-020 as the normal Inspector-window path. D-020 remains only
+as a historical, explicitly selected fallback for the exact reduced-quota
+profile it documents.
+
+New generic DEV windows reserve exactly one Lambda execution. Increasing that
+value requires a new capacity and risk review. Before creating temporary
+controls, the opener must
+verify that the applied regional quota, account limit and current unreserved
+pool each have capacity for the requested reservation while retaining Lambda's
+minimum 100 unreserved executions. The exact check is 100 plus the requested
+reservation. The safety-shutdown Lambda remains unreserved and shares this
+pool. A failed or ambiguous capacity check aborts without switching modes.
+Inspector validation uses reserved concurrency by default; the existing
+unreserved fallback remains available only by explicit switch and is pinned to
+its historical exact-cap-10 preflight and 15-request tripwire.
+
+For migration planning, let `Q` be the applied regional quota, `R` all other
+reserved capacity, `M=1` the MCP reservation, `C` the expected simultaneous
+use of the shared unreserved pool, and `S` the shutdown concurrency that must
+remain runnable. Require `Q >= R + M + max(100, C + S)`. The opener can prove
+the AWS structural floor from account settings, but it cannot guarantee that
+unbounded unrelated traffic will not consume the shared pool. That residual
+risk must be reviewed before a live window; the script fails closed when the
+structural margin is absent or ambiguous.
+
+Keep the independent Scheduler deadline and CloudWatch request alarm armed
+before enabling compute or the API. The validation wrapper closes in `finally`
+and performs a post-window audit of endpoint disablement, reserved concurrency
+zero, removal of temporary controls and unchanged 1/1 throttling. This is a
+script safety change only; it does not authorize opening DEV or changing AWS
+resources.

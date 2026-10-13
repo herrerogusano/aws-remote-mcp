@@ -15,11 +15,15 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
 
     schedule = script.index('"scheduler", "create-schedule"')
     alarm = script.index('"cloudwatch", "put-metric-alarm"')
+    rollback_scope = script.index("try {")
     concurrency = script.index('"lambda", "put-function-concurrency"')
     endpoint = script.index('"apigatewayv2", "update-api"')
 
     assert schedule < alarm < concurrency < endpoint
+    assert rollback_scope < schedule < alarm
     assert "[ValidateRange(1, 5)]" in script
+    assert "[ValidateSet(1)]" in script
+    assert "[int]$ReservedConcurrency = 1" in script
     assert "$RequestThreshold = 20" in script
     assert '"--action-after-completion", "DELETE"' in script
     assert "Input='{}'" in script
@@ -50,6 +54,19 @@ def test_open_window_installs_guards_before_enabling_endpoint() -> None:
     )
     assert "$RequestThreshold -gt 15" in script
     assert "unreserved-account-cap-10" in script
+    assert '"--quota-code", "L-B99A9384"' in script
+    assert "$minimumRegionalCapacity = 100 + $ReservedConcurrency" in script
+    assert "$quota.Quota.Value -lt $minimumRegionalCapacity" in script
+    assert (
+        "$accountSettings.AccountLimit.UnreservedConcurrentExecutions -lt "
+        "$minimumRegionalCapacity"
+    ) in script
+    assert '"--reserved-concurrent-executions", "$ReservedConcurrency"' in script
+    assert "if ($UseUnreservedConcurrency)" in script
+    assert "AWS CLI failed during allowlisted operation: $operation" in script
+    assert "Arguments -join" not in script
+    assert "& aws @Arguments 2> $stderrPath" in script
+    assert "Remove-Item -LiteralPath $stderrPath -Force" in script
     assert '"ce", "get-cost-and-usage"' not in script
     assert '[ValidateSet("Cognito", "ExternalOAuth")]' in script
     assert "validate-oauth-provider.ps1" in script
@@ -59,10 +76,19 @@ def test_open_window_has_fail_closed_cleanup() -> None:
     script = OPEN_SCRIPT.read_text(encoding="utf-8")
 
     catch_block = script[script.index("catch {") :]
-    assert "--disable-execute-api-endpoint --region" in catch_block
-    assert "--reserved-concurrent-executions 0" in catch_block
-    assert "cloudwatch delete-alarms" in catch_block
-    assert "scheduler delete-schedule" in catch_block
+    assert '"--disable-execute-api-endpoint", "--region", $Region' in catch_block
+    assert '"--reserved-concurrent-executions", "0", "--region", $Region' in catch_block
+    assert '"apigatewayv2", "get-api"' in catch_block
+    assert '"lambda", "get-function-concurrency"' in catch_block
+    assert '$cleanupFailures.Add("verify_api_disabled")' in catch_block
+    assert '$cleanupFailures.Add("verify_lambda_stopped")' in catch_block
+    assert '"cloudwatch", "delete-alarms"' in catch_block
+    assert '"scheduler", "delete-schedule"' in catch_block
+    assert '"cloudwatch", "describe-alarms"' in catch_block
+    assert '"scheduler", "list-schedules"' in catch_block
+    assert '$cleanupFailures.Add("verify_traffic_alarm_absent")' in catch_block
+    assert '$cleanupFailures.Add("verify_auto_close_schedule_absent")' in catch_block
+    assert "fail-closed rollback needs attention" in catch_block
 
 
 def test_manual_close_disables_endpoint_before_stopping_compute() -> None:
@@ -111,7 +137,8 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert prepare < open_window < inspector
     assert "@modelcontextprotocol/inspector@2.4.0" in script
     assert "-RequestThreshold 15" in script
-    assert "-UseUnreservedConcurrency" in script
+    assert "[switch]$UseUnreservedConcurrency" in script
+    assert "-UseUnreservedConcurrency:$UseUnreservedConcurrency" in script
     assert 'OutputKey -eq "ProtectedResourceMetadataEndpoint"' in script
     assert "foreach ($attempt in 1..2)" in script
     assert "Start-Sleep -Seconds 5" in script
@@ -141,5 +168,11 @@ def test_inspector_validation_is_pinned_bounded_and_fail_closed() -> None:
     assert "$toolContent.counters.resources -gt 20" in script
     assert "$toolContent.counters.external_writes_attempted -ne 0" in script
     assert "& $closeScript" in finally_block
+    assert "Post-window audit found an open surface" in finally_block
+    assert "$postAuditConcurrency.ReservedConcurrentExecutions -ne 0" in finally_block
+    assert (
+        "$postAuditStages.Items[0].DefaultRouteSettings.ThrottlingRateLimit -ne 1"
+    ) in finally_block
+    assert "@($postAuditSchedules.Schedules).Count -ne 0" in finally_block
     assert "Remove-Item -LiteralPath $resolvedStorage -Recurse -Force" in finally_block
     assert '"ce", "get-cost-and-usage"' not in script
