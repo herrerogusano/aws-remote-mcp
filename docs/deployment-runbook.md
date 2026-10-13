@@ -140,12 +140,19 @@ the whole API endpoint is enabled.
 ```
 
 The maximum window is five minutes. The alarm invokes the safety shutdown after
-15 requests in one minute. The generic opener prefers reserved concurrency one.
-The Inspector wrapper uses the reviewed unreserved fallback because this
-reduced-quota account cannot allocate a reservation; it refuses to proceed
-unless both Service Quotas and Lambda account settings report a regional cap and
-unreserved pool of exactly 10. This mode also refuses a request tripwire above
-15. Call only `tools/list`,
+15 requests in one minute. The generic opener reserves exactly one execution;
+raising it requires a separate capacity and risk review. Before arming the
+window, it verifies that the applied regional Lambda quota, account limit and
+current unreserved pool each leave at least 100 executions unreserved after
+that reservation. If that margin is unavailable, it fails closed; it never
+switches to unreserved concurrency automatically.
+The Inspector wrapper uses reserved concurrency by default. The historical
+unreserved fallback is available only with the explicit
+`-UseUnreservedConcurrency` switch; it refuses to proceed unless both Service
+Quotas and Lambda account settings report a regional cap and unreserved pool of
+exactly 10. This mode also refuses a request tripwire above 15. The independent
+safety-shutdown Lambda remains unreserved and shares the regional pool. Call
+only `tools/list`,
 `diagnostico`, and `listar_inventario_aws`, then close immediately:
 
 ```powershell
@@ -174,12 +181,50 @@ start OAuth until the API Gateway data plane returns the exact MCP resource.
 Do not run the individual opener for this validation; the wrapper owns the whole
 lifecycle.
 
+Before requesting any regional quota change, calculate the necessary applied
+quota as `Q >= R + M + max(100, C + S)`: `R` is other reserved capacity, `M=1`
+is this MCP window, `C` is bounded simultaneous use of the unreserved pool and
+`S` is the shutdown concurrency that must remain runnable. The 100-unit AWS
+minimum is shared capacity, not a dedicated reservation for the shutdown. If
+`C` cannot be bounded, the shutdown cannot be claimed to have guaranteed
+capacity without a separately reviewed design change.
+
+### Future quota migration and rollback
+
+1. Keep API Gateway disabled and MCP concurrency at zero.
+2. With separate approval, inventory the applied regional limit, all existing
+   reserved/provisioned allocations and bounded unreserved workloads. Do not
+   infer current AWS state from this document.
+3. Request only the reviewed regional adjustment. Some reduced accounts may
+   not accept a small increase through the Service Quotas API; do not request
+   an unnecessarily large value merely to pass its validation rule.
+4. Wait for the applied limit, then repeat the read-only account and reservation
+   checks. The opener must still pass its own `>=101` structural preflight.
+5. Arm Scheduler and the request alarm, reserve exactly one MCP execution and
+   enable the endpoint last. Any ambiguous create response enters rollback and
+   verifies both temporary controls are absent.
+6. Close by disabling the endpoint first, restoring MCP concurrency zero and
+   removing the alarm and schedule. Verify the final state independently.
+7. Do not reduce the regional quota while an MCP reservation or validation
+   window remains active.
+
+Requesting a quota change, reading the future live account inventory, opening a
+window and deploying any follow-up IaC each require their own current authority.
+This preparation grants none of them.
+
+The shutdown-capacity decision that must precede that request is documented in
+`docs/safety-shutdown-capacity-options.md`. It is a proposal, not deployed state.
+
 For the exact Inspector 2.4.0 already-started transport error after OAuth, the
 wrapper permits one fresh `tools/list --stored-auth-only` process. It first
 checks the stored token contract and remaining validity, and requires fewer than
 180 seconds elapsed since beginning the opening sequence. This may add discovery
 traffic within the same 15-request tripwire; the deadline is never extended.
 Other failures and failed recovery close immediately. Tool calls are not retried.
+The wrapper's `finally` closes the API, returns Lambda concurrency to zero,
+removes temporary alarms and schedules, and audits those closed-state
+invariants plus the 1/1 stage throttle. A failed post-window audit is reported
+as cleanup failure and requires operator attention.
 
 This existing validation wrapper covers the original two-service inventory
 only. Do not call the separate Resource Explorer tool through this procedure;

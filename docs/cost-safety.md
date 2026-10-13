@@ -32,9 +32,10 @@ Opening a window requires all of these checks in order:
 1. A one-time AWS-side shutdown is created in a dedicated schedule group and
    auto-deletes afterward.
 2. A temporary alarm is armed at 15 API requests in one minute.
-3. Lambda is enabled. Reserved concurrency one is preferred; the reviewed
-   Inspector fallback permits only the regional account cap of exactly 10 when
-   AWS's reduced-account quota cannot allocate a reservation.
+3. Lambda is enabled with reserved concurrency one after proving the current
+   regional and unreserved-capacity margin. The historical Inspector fallback
+   is never selected automatically; using it requires a separate approval, the
+   explicit switch and the exact reviewed cap-10 preflight.
 4. Only then is the default API endpoint enabled, for at most five minutes.
 
 The close path disables the API before stopping Lambda and attempts all cleanup

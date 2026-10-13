@@ -4,7 +4,8 @@ param(
     [string]$Region = "eu-west-1",
     [string]$AppStack = "aws-remote-mcp-dev",
     [string]$AuthStack = "aws-remote-mcp-auth-dev",
-    [string]$Username = "portfolio-admin"
+    [string]$Username = "portfolio-admin",
+    [switch]$UseUnreservedConcurrency
 )
 
 $ErrorActionPreference = "Stop"
@@ -255,7 +256,8 @@ try {
     $env:MCP_AUTO_OPEN_ENABLED = "true"
     $windowClock = [Diagnostics.Stopwatch]::StartNew()
     & $openScript -WindowMinutes 5 -RequestThreshold 15 `
-        -StackName $AppStack -Region $Region -UseUnreservedConcurrency
+        -StackName $AppStack -Region $Region `
+        -UseUnreservedConcurrency:$UseUnreservedConcurrency
 
     $dataPlaneReady = $false
     foreach ($attempt in 1..2) {
@@ -342,6 +344,41 @@ finally {
     try { & $closeScript -StackName $AppStack -Region $Region } catch {
         $cleanupFailures.Add("close_aws_window")
     }
+    try {
+        $postAuditApi = Invoke-AwsJson @(
+            "apigatewayv2", "get-api", "--api-id", $apiId,
+            "--region", $Region, "--output", "json"
+        )
+        $postAuditConcurrency = Invoke-AwsJson @(
+            "lambda", "get-function-concurrency", "--function-name", $functionName,
+            "--region", $Region, "--output", "json"
+        )
+        $postAuditStages = Invoke-AwsJson @(
+            "apigatewayv2", "get-stages", "--api-id", $apiId,
+            "--region", $Region, "--output", "json"
+        )
+        $postAuditAlarms = Invoke-AwsJson @(
+            "cloudwatch", "describe-alarms", "--alarm-names",
+            "aws-remote-mcp-dev-request-kill-switch",
+            "--region", $Region, "--output", "json"
+        )
+        $postAuditSchedules = Invoke-AwsJson @(
+            "scheduler", "list-schedules", "--group-name", $scheduleGroup,
+            "--region", $Region, "--output", "json"
+        )
+        if (
+            -not $postAuditApi.DisableExecuteApiEndpoint -or
+            $postAuditConcurrency.ReservedConcurrentExecutions -ne 0 -or
+            @($postAuditAlarms.MetricAlarms).Count -ne 0 -or
+            @($postAuditSchedules.Schedules).Count -ne 0 -or
+            @($postAuditStages.Items).Count -ne 1 -or
+            $postAuditStages.Items[0].DefaultRouteSettings.ThrottlingRateLimit -ne 1 -or
+            $postAuditStages.Items[0].DefaultRouteSettings.ThrottlingBurstLimit -ne 1
+        ) {
+            throw "Post-window audit found an open surface, temporary control or throttle drift"
+        }
+    }
+    catch { $cleanupFailures.Add("post_window_audit") }
     $env:MCP_STORAGE_DIR = $previousStorage
     $env:MCP_AUTO_OPEN_ENABLED = $previousAutoOpen
     try {

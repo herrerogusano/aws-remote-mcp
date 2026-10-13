@@ -111,9 +111,14 @@ Open a maximum five-minute window only after the closed deployment is audited:
   -AuthorizationProfile ExternalOAuth `
   -AuthorizationServer $authServer `
   -RequiredScope openid `
-  -UseUnreservedConcurrency `
   -RequestThreshold 15
 ```
+
+This path reserves exactly one MCP execution and fails closed unless the
+applied regional limit and current unreserved capacity preserve Lambda's
+100-unit unreserved minimum. It never selects the historical no-reservation
+fallback automatically. That fallback requires a separate approval and the
+explicit `-UseUnreservedConcurrency` switch.
 
 Connect a client using only `$mcpEndpoint`. A compatible client should discover
 the authorization server and open AuthKit without asking the user for a client

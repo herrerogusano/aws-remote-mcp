@@ -2,6 +2,24 @@
 
 Region: `eu-west-1`
 
+## Validation-window concurrency hardening
+
+On 2026-10-01 the generic DEV window opener was hardened to use reserved
+concurrency of exactly one and to require verified
+regional quota and unreserved-capacity margin for Lambda's 100-execution
+unreserved minimum before it arms controls or opens the endpoint. The safety
+shutdown Lambda remains in that unreserved pool. Neither opener enables the
+historical fallback implicitly; Inspector now also defaults to reserved mode.
+It performs a post-close audit of API disablement, concurrency zero, temporary
+control removal and unchanged stage throttling. These are offline script and
+documentation changes only; no AWS resources were queried or modified, and the
+change is not yet deployed.
+
+An offline follow-up compares a dedicated safety-shutdown reservation with a
+managed control-plane workflow that does not consume Lambda concurrency. It is
+recorded in `docs/safety-shutdown-capacity-options.md`; no option has been
+selected or implemented, and no live inventory or quota request was made.
+
 ## Multi-client increment
 
 On 2026-09-09 the target was clarified as a public portfolio MCP that users can
@@ -178,10 +196,11 @@ removed afterward.
 - MCP Lambda verified at reserved concurrency zero, 128 MB and 10-second timeout.
 - Stage throttling verified at rate 1 request/second and burst 1.
 - Five-minute signed validation window has scheduled and volume-based shutdown.
-- The regional Lambda quota is the reduced-account value 10. AWS rejected the
-  minimal request for 11 because its quota API accepts only values above the
-  standard 1,000; the Inspector wrapper therefore permits unreserved execution
-  only while the account cap remains exactly 10.
+- Historical September validation used the reduced-account regional Lambda
+  quota 10. AWS rejected the minimal request for 11 because its quota API
+  accepts only values above the standard 1,000; that historical Inspector path
+  permitted unreserved execution only while the account cap remained exactly
+  10. D-034 supersedes it as the normal path.
 - The independent five-minute shutdown path was exercised on 2026-09-02. The
   authentication callback timed out without remote MCP calls; AWS restored the
   disabled API, concurrency zero, no alarm and no remaining schedule at the
