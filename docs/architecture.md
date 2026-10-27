@@ -78,7 +78,10 @@ and every execution permits at most one external-write attempt.
 The deployment profile is disabled by default. When explicitly enabled, it adds
 two prepare tools and two execute tools for one fixed Telegram alias and one
 fixed Trello board/list alias. The exact aliases are checked before confirmation;
-provider identifiers are resolved only inside the adapter.
+provider identifiers are resolved only inside the adapter. The remote Trello
+tools accept only the card title and description: the server injects its single
+configured alias, so callers never need to know board or list names, and a
+configuration with more than one Trello alias fails at startup.
 
 One Standard SecureString in Parameter Store contains both providers' bounded
 configuration. The value is fetched and decrypted only after a confirmation has
