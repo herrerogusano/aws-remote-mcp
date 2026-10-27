@@ -29,6 +29,13 @@ Parameters:
     Type: String
     Description: Comma-separated OAuth subjects allowed to call this MCP endpoint (one to five); every other authenticated subject receives 403.
     AllowedPattern: "^[A-Za-z0-9_|:.@-]{1,128}(,[A-Za-z0-9_|:.@-]{1,128}){0,4}$"
+  EndpointMode:
+    Type: String
+    Default: closed
+    AllowedValues:
+      - closed
+      - always-on
+    Description: closed keeps the API disabled and Lambda concurrency at zero; always-on keeps the owner-only DEV endpoint available behind a permanent request kill switch.
   EnableExternalIntegrations:
     Type: String
     Default: "false"
@@ -54,7 +61,15 @@ Parameters:
     AllowedPattern: "^$|^arn:aws:resource-explorer-2:eu-west-1:[0-9]{12}:view/[A-Za-z0-9_-]{1,64}/[A-Za-z0-9-]{1,64}$"
     Description: Optional exact ARN of a pre-existing Resource Explorer view in eu-west-1; empty disables Resource Explorer search.
 
+Rules:
+  AlwaysOnOnlyInDev:
+    RuleCondition: !Equals [!Ref EndpointMode, always-on]
+    Assertions:
+      - Assert: !Equals [!Ref Environment, dev]
+        AssertDescription: Only DEV may run always-on; PROD activation needs its own review.
+
 Conditions:
+  AlwaysOn: !Equals [!Ref EndpointMode, always-on]
   ExternalIntegrationsEnabled: !Equals [!Ref EnableExternalIntegrations, "true"]
   CostExplorerEnabled: !Equals [!Ref EnableCostExplorer, "true"]
   PersistentConfirmationEnabled: !Or
@@ -193,7 +208,7 @@ Resources:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: "$default"
-      DisableExecuteApiEndpoint: true
+      DisableExecuteApiEndpoint: !If [AlwaysOn, false, true]
       FailOnWarnings: true
       DefinitionBody:
         openapi: "3.0.1"
@@ -268,7 +283,8 @@ Resources:
       CodeUri: src/
       Handler: aws_remote_mcp.lambda_handler.handler
       Role: !GetAtt RemoteMcpExecutionRole.Arn
-      ReservedConcurrentExecutions: 0
+      # Always-on shares the account's unreserved pool; closed mode stops all invocations.
+      ReservedConcurrentExecutions: !If [AlwaysOn, !Ref AWS::NoValue, 0]
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
@@ -427,6 +443,8 @@ Resources:
           TARGET_API_ID: !Ref RemoteMcpApi
           TARGET_FUNCTION_NAME: !Ref RemoteMcpFunction
           TRAFFIC_ALARM_NAME: !Sub "aws-remote-mcp-${Environment}-request-kill-switch"
+          # The always-on alarm is stack-managed; deleting it would drift the stack.
+          DELETE_TRAFFIC_ALARM: !If [AlwaysOn, "false", "true"]
       LoggingConfig:
         LogFormat: JSON
         ApplicationLogLevel: INFO
@@ -439,6 +457,29 @@ Resources:
       Tags:
         environment: !Ref Environment
         project: aws-remote-mcp
+
+  AlwaysOnRequestKillSwitch:
+    Type: AWS::CloudWatch::Alarm
+    Condition: AlwaysOn
+    Properties:
+      AlarmName: !Sub "aws-remote-mcp-${Environment}-request-kill-switch"
+      AlarmDescription: Closes the always-on endpoint after unexpected request volume.
+      Namespace: AWS/ApiGateway
+      MetricName: Count
+      Dimensions:
+        - Name: ApiId
+          Value: !Ref RemoteMcpApi
+        - Name: Stage
+          Value: "$default"
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      DatapointsToAlarm: 1
+      Threshold: 100
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref SafetyShutdownTopic
 
   SafetyShutdownScheduleGroup:
     Type: AWS::Scheduler::ScheduleGroup

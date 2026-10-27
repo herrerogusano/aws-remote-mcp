@@ -16,7 +16,9 @@ def test_template_supports_only_isolated_dev_and_prod() -> None:
     assert "Runtime: python3.13" in template
     assert "MemorySize: 128" in template
     assert "Timeout: 10" in template
-    assert "ReservedConcurrentExecutions: 0" in template
+    assert (
+        "ReservedConcurrentExecutions: !If [AlwaysOn, !Ref AWS::NoValue, 0]" in template
+    )
     assert template.count("ReservedConcurrentExecutions:") == 1
     assert "ThrottlingBurstLimit: 1" in template
     assert "ThrottlingRateLimit: 1" in template
@@ -32,7 +34,9 @@ def test_template_supports_only_isolated_dev_and_prod() -> None:
 def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     template = template_text()
 
-    assert "DisableExecuteApiEndpoint: true" in template
+    assert "DisableExecuteApiEndpoint: !If [AlwaysOn, false, true]" in template
+    endpoint_mode = template.split("  EndpointMode:", 1)[1].split("\n  E", 1)[0]
+    assert "Default: closed" in endpoint_mode
     assert "FailOnWarnings: true" in template
     assert 'openapi: "3.0.1"' in template
     assert 'url: "/"' in template
@@ -193,3 +197,20 @@ def test_automatic_shutdown_is_wired_to_exact_resources() -> None:
     assert "aws-remote-mcp-${Environment}-request-kill-switch" in template
     assert "close-only-this-environment-endpoint" in template
     assert "aws:SourceArn: !GetAtt SafetyShutdownScheduleGroup.Arn" in template
+
+
+def test_always_on_is_dev_only_and_guarded_by_a_stack_managed_kill_switch() -> None:
+    template = template_text()
+
+    assert "AlwaysOn: !Equals [!Ref EndpointMode, always-on]" in template
+    rule = template.split("  AlwaysOnOnlyInDev:", 1)[1].split("\nConditions:", 1)[0]
+    assert "- Assert: !Equals [!Ref Environment, dev]" in rule
+    alarm = template.split("  AlwaysOnRequestKillSwitch:", 1)[1].split("\n\n", 1)[0]
+    assert "Condition: AlwaysOn" in alarm
+    assert "aws-remote-mcp-${Environment}-request-kill-switch" in alarm
+    assert "MetricName: Count" in alarm
+    assert "Period: 300" in alarm
+    assert "Threshold: 100" in alarm
+    assert "TreatMissingData: notBreaching" in alarm
+    assert "- !Ref SafetyShutdownTopic" in alarm
+    assert 'DELETE_TRAFFIC_ALARM: !If [AlwaysOn, "false", "true"]' in template

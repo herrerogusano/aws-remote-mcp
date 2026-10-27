@@ -35,9 +35,14 @@ exact MCP audience and `openid` scope, pass the API Gateway authorizer and the
 Lambda claim checks, and confirm their own external-write previews. D-035 adds a
 required `McpAllowedSubjects` stack parameter checked in Lambda: other
 authenticated subjects receive HTTP 403 and a fixed audit record without the raw
-subject. The change is offline-tested only; no stack has been updated yet. The
-next deployment must supply the owner's WorkOS user ID, and WorkOS sign-up should
-be disabled in the dashboard.
+subject. On 2026-10-27 open WorkOS sign-up was disabled (the AuthKit sign-up page now
+returns not found) and the allowlist was deployed to the still-closed DEV stack.
+Only the MCP Lambda changed; afterwards the API remained disabled and reserved
+concurrency remained zero.
+
+D-036 then adds an opt-in `EndpointMode=always-on` for DEV only: API enabled,
+unreserved concurrency and a permanent stack-managed request kill switch
+(100 requests in five minutes). Closed remains the default.
 
 ## Complete project inventory increment
 

@@ -1,4 +1,4 @@
-"""Idempotently close one temporary endpoint and remove its traffic alarm."""
+"""Idempotently close one endpoint and, for temporary windows, remove its alarm."""
 
 from __future__ import annotations
 
@@ -39,6 +39,7 @@ def close_test_window(
     function_name: str,
     alarm_name: str,
     environment: str = "dev",
+    delete_alarm: bool = True,
 ) -> None:
     """Attempt every fail-closed action even if an earlier action fails."""
 
@@ -53,11 +54,14 @@ def close_test_window(
                 FunctionName=function_name, ReservedConcurrentExecutions=0
             ),
         ),
-        (
-            "delete_traffic_alarm",
-            lambda: cloudwatch_client.delete_alarms(AlarmNames=[alarm_name]),
-        ),
     )
+    if delete_alarm:
+        actions += (
+            (
+                "delete_traffic_alarm",
+                lambda: cloudwatch_client.delete_alarms(AlarmNames=[alarm_name]),
+            ),
+        )
     failures: list[str] = []
     for action_name, action in actions:
         try:
@@ -71,7 +75,7 @@ def close_test_window(
                 "event": f"{environment}_test_window_closed",
                 "apiDisabled": "disable_api" not in failures,
                 "lambdaStopped": "stop_lambda" not in failures,
-                "alarmDeleted": "delete_traffic_alarm" not in failures,
+                "alarmDeleted": delete_alarm and "delete_traffic_alarm" not in failures,
                 "failedActions": failures,
             },
             separators=(",", ":"),
@@ -85,6 +89,9 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, bool]:
     """Lambda entry point used by both Scheduler and the traffic alarm topic."""
 
     del event, context
+    delete_setting = os.environ.get("DELETE_TRAFFIC_ALARM", "true")
+    if delete_setting not in {"true", "false"}:
+        raise RuntimeError("DELETE_TRAFFIC_ALARM must be true or false.")
     boto3 = importlib.import_module("boto3")
     close_test_window(
         cast("ApiGatewayClient", boto3.client("apigatewayv2")),
@@ -94,5 +101,6 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, bool]:
         function_name=required_environment("TARGET_FUNCTION_NAME"),
         alarm_name=required_environment("TRAFFIC_ALARM_NAME"),
         environment=required_environment("APP_ENVIRONMENT"),
+        delete_alarm=delete_setting == "true",
     )
     return {"closed": True}

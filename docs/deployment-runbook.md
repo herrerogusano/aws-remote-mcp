@@ -244,3 +244,33 @@ The stack owns no business data. Its three log groups are deleted with the stack
 the shared SAM artifact bucket is retained. A separately managed Resource
 Explorer view or index is outside this stack and is neither modified nor
 deleted by its rollback or removal.
+
+## Owner-only always-on DEV (D-036)
+
+Requires the D-035 allowlist and disabled open sign-up in the authorization
+server. Deploy the same parameters as the closed stack plus:
+
+```powershell
+    EndpointMode=always-on `
+```
+
+Verify afterwards: API enabled, no reserved concurrency entry, the
+`aws-remote-mcp-dev-request-kill-switch` alarm present in `OK` or
+`INSUFFICIENT_DATA`, and no scheduled auto-close. `open-dev-window.ps1`
+refuses to run in this mode because the endpoint is already open and the
+alarm exists.
+
+To turn it off, redeploy with `EndpointMode=closed`.
+
+If the alarm closes the endpoint, the stack still says always-on while the API
+is disabled and concurrency is zero. Inspect the API access log and Lambda
+audit records first. Only then re-open it explicitly:
+
+```powershell
+aws apigatewayv2 update-api --api-id <ApiId> --no-disable-execute-api-endpoint --region eu-west-1
+aws lambda delete-function-concurrency --function-name aws-remote-mcp-dev --region eu-west-1
+```
+
+The emergency `close-dev-window.ps1` also deletes the alarm. In always-on mode,
+prefer a closed redeployment; if the script was used, redeploy closed and then
+always-on to restore the stack-managed alarm.
