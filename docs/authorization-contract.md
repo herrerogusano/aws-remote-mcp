@@ -10,6 +10,9 @@ The remote MCP is an OAuth 2.1 resource server. The offline protected app proves
 - missing, malformed, invalid, expired, wrong-issuer, wrong-audience, or ID tokens
   receive HTTP 401;
 - a valid token missing `<MCP resource URI>/use` receives HTTP 403;
+- at the deployed Lambda boundary, a valid token whose subject is not in the
+  required `McpAllowedSubjects` owner allowlist receives HTTP 403 without a
+  step-up challenge (D-035);
 - 401/403 `WWW-Authenticate` challenges include the authoritative scope and
   protected-resource metadata URL;
 - protected-resource metadata is public at the RFC 9728 path-specific URI and

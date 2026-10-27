@@ -37,6 +37,7 @@ def gateway_authorization_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OAUTH_AUTHORIZATION_SERVER", AUTHORIZATION_SERVER)
     monkeypatch.setenv("MCP_RESOURCE_URL", RESOURCE)
     monkeypatch.setenv("MCP_REQUIRED_SCOPE", REQUIRED_SCOPE)
+    monkeypatch.setenv("MCP_ALLOWED_SUBJECTS", "test-subject")
 
 
 @dataclass(slots=True)
@@ -494,7 +495,12 @@ def test_lambda_rejects_invalid_gateway_jwt_claims(
 
 @pytest.mark.parametrize(
     "name",
-    ["OAUTH_ISSUER", "OAUTH_AUTHORIZATION_SERVER", "MCP_RESOURCE_URL"],
+    [
+        "OAUTH_ISSUER",
+        "OAUTH_AUTHORIZATION_SERVER",
+        "MCP_RESOURCE_URL",
+        "MCP_ALLOWED_SUBJECTS",
+    ],
 )
 def test_lambda_requires_gateway_authorization_configuration(
     monkeypatch: pytest.MonkeyPatch, name: str
@@ -505,3 +511,97 @@ def test_lambda_requires_gateway_authorization_configuration(
 
     with pytest.raises(RuntimeError, match=name):
         handler(http_api_event("tools/list"), FakeLambdaContext())
+
+
+def _set_subject(event: dict[str, Any], subject: str) -> None:
+    request_context = cast("dict[str, Any]", event["requestContext"])
+    authorizer = cast("dict[str, Any]", request_context["authorizer"])
+    jwt_context = cast("dict[str, Any]", authorizer["jwt"])
+    claims = cast("dict[str, Any]", jwt_context["claims"])
+    claims["sub"] = subject
+
+
+def test_lambda_forbids_valid_token_for_subject_outside_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    messages: list[str] = []
+    monkeypatch.setattr(
+        "aws_remote_mcp.lambda_handler.AUDIT_LOGGER.info", messages.append
+    )
+    event = http_api_event(
+        "tools/call",
+        params={"name": "diagnostico", "arguments": {}},
+        name="diagnostico",
+    )
+    _set_subject(event, "user_self_registered_stranger")
+
+    response = handler(event, FakeLambdaContext())
+
+    assert response["statusCode"] == 403
+    assert "www-authenticate" not in {key.lower() for key in response["headers"]}
+    assert response_body(response)["error"] == "forbidden"
+    assert len(messages) == 1
+    record = json.loads(messages[0])
+    assert record["event_type"] == "mcp_authorization_denied"
+    assert record["reason"] == "subject_not_allowed"
+    assert record["caller_fingerprint"]
+    assert "user_self_registered_stranger" not in messages[0]
+
+
+def test_lambda_accepts_any_subject_from_multi_entry_allowlist(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("MCP_ALLOWED_SUBJECTS", "user_owner, user_backup")
+    event = http_api_event("tools/list")
+    _set_subject(event, "user_backup")
+
+    response = handler(event, FakeLambdaContext())
+
+    assert response["statusCode"] == 200
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "test-subject,",
+        "test-subject,,user_backup",
+        "test subject",
+        "a,b,c,d,e,f",
+        "x" * 129,
+    ],
+)
+def test_lambda_rejects_malformed_subject_allowlist(
+    monkeypatch: pytest.MonkeyPatch, value: str
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("MCP_ALLOWED_SUBJECTS", value)
+
+    with pytest.raises(RuntimeError, match="MCP_ALLOWED_SUBJECTS"):
+        handler(http_api_event("tools/list"), FakeLambdaContext())
+
+
+def test_subject_allowlist_does_not_gate_public_metadata(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("APP_ENVIRONMENT", "dev")
+    monkeypatch.setenv("AWS_REGION", "eu-west-1")
+    monkeypatch.setenv("MCP_ALLOWED_SUBJECTS", "user_owner")
+    event = http_api_event("metadata")
+    event["routeKey"] = "GET /.well-known/oauth-protected-resource/mcp"
+    event["rawPath"] = "/.well-known/oauth-protected-resource/mcp"
+    request_context = cast("dict[str, Any]", event["requestContext"])
+    request_context["routeKey"] = "GET /.well-known/oauth-protected-resource/mcp"
+    request_context.pop("authorizer")
+    http_context = cast("dict[str, Any]", request_context["http"])
+    http_context["method"] = "GET"
+    http_context["path"] = "/.well-known/oauth-protected-resource/mcp"
+    event["body"] = None
+
+    response = handler(event, FakeLambdaContext())
+
+    assert response["statusCode"] == 200

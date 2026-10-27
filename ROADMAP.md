@@ -71,10 +71,12 @@ MCP client
 The server and Codex client validation are complete. The next portfolio steps
 remain deliberately gated:
 
-1. Optionally validate onboarding from Claude or another compatible client.
-2. Decide whether a public always-on PROD demonstration is justified after its
+1. Deploy the owner-only subject allowlist (D-035) and disable open WorkOS
+   sign-up before any always-available endpoint is considered.
+2. Optionally validate onboarding from Claude or another compatible client.
+3. Decide whether an always-on PROD demonstration is justified after its
    abuse and cost controls are tested in DEV.
-3. Consider GitHub OIDC delivery and a recorded demonstration afterward.
+4. Consider GitHub OIDC delivery and a recorded demonstration afterward.
 
 ## Success criteria
 

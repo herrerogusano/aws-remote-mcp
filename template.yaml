@@ -25,6 +25,10 @@ Parameters:
     Type: String
     Description: Exact OAuth scope required in addition to the resource audience.
     AllowedPattern: "^[A-Za-z0-9:/._-]+$"
+  McpAllowedSubjects:
+    Type: String
+    Description: Comma-separated OAuth subjects allowed to call this MCP endpoint (one to five); every other authenticated subject receives 403.
+    AllowedPattern: "^[A-Za-z0-9_|:.@-]{1,128}(,[A-Za-z0-9_|:.@-]{1,128}){0,4}$"
   EnableExternalIntegrations:
     Type: String
     Default: "false"
@@ -275,6 +279,7 @@ Resources:
           OAUTH_AUTHORIZATION_SERVER: !Ref OAuthAuthorizationServer
           MCP_RESOURCE_URL: !Ref McpTokenAudience
           MCP_REQUIRED_SCOPE: !Ref McpRequiredScope
+          MCP_ALLOWED_SUBJECTS: !Ref McpAllowedSubjects
           EXTERNAL_INTEGRATIONS_ENABLED: !Ref EnableExternalIntegrations
           COST_EXPLORER_ENABLED: !Ref EnableCostExplorer
           COST_EXPLORER_BILLING_VIEW_ARN: !If

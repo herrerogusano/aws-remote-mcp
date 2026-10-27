@@ -34,7 +34,8 @@ scope checks before discarding the bearer header.
 ## Manual WorkOS staging setup
 
 1. Create a WorkOS account and keep the environment in **Staging**.
-2. Enable AuthKit hosted authentication and user sign-up.
+2. Enable AuthKit hosted authentication. Create the owner account, then
+   disable open user sign-up so no other person can obtain a token (D-035).
 3. Copy the AuthKit domain shown for the staging environment. It has the form
    `https://<project>.authkit.app`; this is the OAuth issuer and authorization
    server.
@@ -43,6 +44,8 @@ scope checks before discarding the bearer header.
 6. Read the closed DEV `McpEndpoint` CloudFormation output and add that exact URL
    as a WorkOS **Resource Indicator**.
 7. Set that Resource Indicator as the default for clients that omit `resource`.
+8. Copy the owner's WorkOS user ID (`user_...`) from **Users**. It is the
+   token `sub` claim and the value of `McpAllowedSubjects`.
 
 Do not create an API key for this integration. The MCP server validates public
 JWT signatures through the issuer metadata and never calls a WorkOS management
@@ -58,6 +61,7 @@ $app = aws cloudformation describe-stacks `
 $mcpEndpoint = ($app.Stacks[0].Outputs |
   Where-Object OutputKey -eq 'McpEndpoint').OutputValue
 $authServer = 'https://<project>.authkit.app'
+$ownerSubject = '<owner WorkOS user ID>'
 
 .\scripts\validate-oauth-provider.ps1 `
   -AuthorizationServer $authServer `
@@ -93,11 +97,15 @@ sam deploy `
     OAuthAuthorizationServer=$authServer `
     McpTokenAudience=$mcpEndpoint `
     McpRequiredScope=openid `
+    McpAllowedSubjects=$ownerSubject `
     EnableExternalIntegrations=true `
     IntegrationConfigParameterName=/portfolio/aws-remote-mcp/dev/integrations `
   --no-confirm-changeset `
   --no-fail-on-empty-changeset
 ```
+
+`McpAllowedSubjects` has no default; a deployment without it fails, and any
+other authenticated subject receives HTTP 403 from Lambda.
 
 This deployment must leave `DisableExecuteApiEndpoint=true` and Lambda reserved
 concurrency at zero. It changes the JWT provider but does not open the service.

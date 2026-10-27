@@ -421,3 +421,34 @@ Explorer is enabled, without enabling Telegram or Trello when only Cost
 Explorer is on. If both features are later disabled, the conditional table is
 deleted with the application stack; no Cost Explorer service resource is
 created by the template. Cost Explorer remains false in PROD.
+
+## D-035 - Owner-only subject allowlist at the Lambda boundary
+
+A valid access token proves only that the caller authenticated with the
+configured authorization server; it does not prove the caller is the owner.
+WorkOS AuthKit with open user sign-up and DCR lets any person obtain a token
+with the exact MCP audience and the `openid` scope, which passes the API Gateway
+JWT authorizer. Caller/payload-bound confirmations protect against accidental
+writes, not against another authenticated caller confirming their own preview.
+
+Require the `McpAllowedSubjects` stack parameter (one to five comma-separated
+OAuth `sub` values, no default) and check it in Lambda after the existing
+issuer, audience, token-type, subject and scope checks. A missing or malformed
+list fails closed for every route. A valid token for any other subject on
+`POST /mcp` receives HTTP 403 without a `WWW-Authenticate` step-up challenge,
+because re-authorization cannot change the subject. The denial emits one fixed
+audit record with the caller fingerprint and never the raw subject. Public
+protected-resource metadata is unaffected.
+
+Operationally, also disable open sign-up in the authorization server so
+strangers cannot obtain tokens at all. The allowlist remains the authoritative
+control if that provider setting is later changed. Keeping DCR/CIMD enabled is
+acceptable: it registers clients, not users, and every client still needs the
+owner's interactive login. A custom per-user scope was rejected for now because
+it depends on provider-side role configuration and adds no protection beyond an
+exact subject match.
+
+This narrows who may call the endpoint relative to the D-031 multi-client
+framing: any compatible client can still onboard, but only for an allowlisted
+owner identity. Opening access to other people requires adding their subjects
+through a reviewed stack update.
