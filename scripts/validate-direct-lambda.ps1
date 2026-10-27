@@ -480,8 +480,6 @@ try {
 
     if ($validateTrello) {
         $trelloArguments = @{
-            board = "portfolio"
-            list_name = "inbox"
             title = $TrelloTitle
             description = $TrelloDescription
         }

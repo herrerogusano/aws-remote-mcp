@@ -527,3 +527,72 @@ def test_official_sdk_client_uses_modern_streamable_http(live_mcp_url: str) -> N
             assert called.structured_content["environment"] == "local"
 
     asyncio.run(scenario())
+
+
+def test_trello_tools_take_only_card_content_and_use_the_fixed_destination() -> None:
+    trello = FakeTrelloAdapter()
+    app = create_app(
+        allowed_hosts=("testserver",),
+        include_external_writes=True,
+        confirmations=ConfirmationGuard(),
+        telegram_adapter=FakeTelegramAdapter(),
+        trello_adapter=trello,
+        telegram_destinations=frozenset({"owner"}),
+        trello_destinations=frozenset({("portfolio", "inbox")}),
+    )
+    with TestClient(app) as client:
+        body, headers = modern_request("tools/list")
+        listing = response_json(client.post("/mcp", json=body, headers=headers))
+        schemas = {
+            tool["name"]: tool["inputSchema"] for tool in listing["result"]["tools"]
+        }
+        assert set(schemas["preparar_tarjeta_trello"]["properties"]) == {
+            "title",
+            "description",
+        }
+        assert set(schemas["crear_tarjeta_trello"]["properties"]) == {
+            "confirmation",
+            "title",
+            "description",
+        }
+
+        arguments = {"title": "Revisar factura", "description": "Octubre"}
+        body, headers = modern_request(
+            "tools/call",
+            params={"name": "preparar_tarjeta_trello", "arguments": arguments},
+            name="preparar_tarjeta_trello",
+        )
+        prepared = response_json(client.post("/mcp", json=body, headers=headers))
+        preview = prepared["result"]["structuredContent"]
+        assert preview["status"] == "confirmation_required"
+        assert preview["data"]["preview"]["board"] == "portfolio"
+        assert preview["data"]["preview"]["list"] == "inbox"
+        assert trello.calls == []
+
+        body, headers = modern_request(
+            "tools/call",
+            params={
+                "name": "crear_tarjeta_trello",
+                "arguments": {
+                    **arguments,
+                    "confirmation": preview["confirmation"]["token"],
+                },
+            },
+            name="crear_tarjeta_trello",
+        )
+        created = response_json(client.post("/mcp", json=body, headers=headers))
+        assert created["result"]["structuredContent"]["status"] == "ok"
+        assert trello.calls == [("portfolio", "inbox", "Revisar factura", "Octubre")]
+
+
+def test_remote_trello_tools_refuse_ambiguous_destinations() -> None:
+    with pytest.raises(ValueError, match="exactly one destination"):
+        create_app(
+            allowed_hosts=("testserver",),
+            include_external_writes=True,
+            confirmations=ConfirmationGuard(),
+            telegram_destinations=frozenset({"owner"}),
+            trello_destinations=frozenset(
+                {("portfolio", "inbox"), ("portfolio", "ideas")}
+            ),
+        )

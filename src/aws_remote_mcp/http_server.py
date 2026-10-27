@@ -87,6 +87,16 @@ def serialize_tool_result(result: ToolResult) -> dict[str, Any]:
     return serialized
 
 
+def _single_trello_destination(
+    destinations: frozenset[tuple[str, str]],
+) -> tuple[str, str]:
+    """Return the only allowlisted Trello alias so callers never choose a board."""
+
+    if len(destinations) != 1:
+        raise ValueError("Remote Trello tools require exactly one destination.")
+    return next(iter(destinations))
+
+
 def build_tool_service(
     *,
     environment: str = "local",
@@ -342,34 +352,39 @@ def create_server(
             )
             return audited_result("enviar_mensaje_telegram", result, caller)
 
+        trello_board, trello_list = _single_trello_destination(trello_destinations)
+
         @server.tool(name="preparar_tarjeta_trello", structured_output=True)
         def prepare_remote_trello_card(
-            board: str, list_name: str, title: str, description: str = ""
+            title: str, description: str = ""
         ) -> dict[str, Any]:
-            """Preview one allowlisted Trello card and issue confirmation."""
+            """Preview one card for the fixed Trello list and issue confirmation.
+
+            The destination list is configured on the server; callers supply only
+            the card title and optional description.
+            """
 
             caller = caller_provider()
             result = tools.prepare_trello_card(
-                caller, board, list_name, title, description
+                caller, trello_board, trello_list, title, description
             )
             return audited_result("preparar_tarjeta_trello", result, caller)
 
         @server.tool(name="crear_tarjeta_trello", structured_output=True)
         def execute_remote_trello_card(
-            confirmation: str,
-            board: str,
-            list_name: str,
-            title: str,
-            description: str = "",
+            confirmation: str, title: str, description: str = ""
         ) -> dict[str, Any]:
-            """Consume confirmation before one Trello write attempt."""
+            """Consume confirmation before one write to the fixed Trello list.
+
+            Pass the same title and description used for the preview.
+            """
 
             caller = caller_provider()
             result = tools.execute_trello_card(
                 caller,
                 confirmation,
-                board,
-                list_name,
+                trello_board,
+                trello_list,
                 title,
                 description,
             )

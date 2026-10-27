@@ -34,7 +34,9 @@ SecureString value; changing only the application allowlist is not sufficient.
 
 ## Confirmation lifecycle
 
-1. A prepare tool validates an allowlisted alias and bounded content.
+1. A prepare tool validates an allowlisted alias and bounded content. Trello
+   tools take only `title` and optional `description`; the server supplies the
+   single `portfolio/inbox` alias.
 2. It stores a token digest, caller fingerprint, action, payload digest, expiry
    and `consumed=false`; the plaintext token is returned only to the caller.
 3. The execute tool repeats validation and atomically sets `consumed=true` only
