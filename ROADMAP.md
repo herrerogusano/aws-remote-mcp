@@ -71,8 +71,8 @@ MCP client
 The server and Codex client validation are complete. The next portfolio steps
 remain deliberately gated:
 
-1. Deploy the owner-only subject allowlist (D-035) and disable open WorkOS
-   sign-up before any always-available endpoint is considered.
+1. Activate the owner-only always-on DEV mode (D-036) after its impact review;
+   the allowlist (D-035) and disabled WorkOS sign-up are already in place.
 2. Optionally validate onboarding from Claude or another compatible client.
 3. Decide whether an always-on PROD demonstration is justified after its
    abuse and cost controls are tested in DEV.

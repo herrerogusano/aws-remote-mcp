@@ -452,3 +452,32 @@ This narrows who may call the endpoint relative to the D-031 multi-client
 framing: any compatible client can still onboard, but only for an allowlisted
 owner identity. Opening access to other people requires adding their subjects
 through a reviewed stack update.
+
+## D-036 - Owner-only always-on DEV endpoint mode
+
+The owner wants daily use of the DEV MCP without opening a five-minute window
+each time. With D-035 in place, availability no longer depends on a short
+window to limit who can call: only the allowlisted owner passes Lambda, and
+open WorkOS sign-up is disabled.
+
+Add `EndpointMode` (`closed` by default, or `always-on`). Closed mode is
+unchanged: API disabled and reserved concurrency zero. Always-on enables the
+execute-api endpoint, removes the reservation so the function uses the
+account's unreserved pool (the regional quota is 10, so reserving capacity is
+not possible), and creates a stack-managed CloudWatch alarm on API Gateway
+`Count` of 100 or more requests in five minutes. The alarm publishes to the
+existing safety topic; the shutdown function then disables the API and sets
+concurrency to zero, but keeps the stack-managed alarm instead of deleting it.
+A CloudFormation rule rejects always-on outside DEV.
+
+Stage throttling stays at one request per second with burst one. At that rate
+API Gateway could receive about 2.6 million requests in a month, but the alarm
+normally stops traffic after roughly 100-300 requests plus CloudWatch delay.
+`Count` includes requests rejected by the JWT authorizer, so anonymous request
+floods can close the endpoint: the design accepts that availability loss in
+exchange for bounded cost. Throttling and alarms are best-effort controls, not
+a guaranteed financial cap.
+
+Turning it off is a normal deployment with `EndpointMode=closed`. After an
+automatic shutdown, re-opening is a deliberate owner action documented in the
+deployment runbook, after reviewing what triggered the alarm.

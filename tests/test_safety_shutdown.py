@@ -6,7 +6,11 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from safety_shutdown.handler import close_test_window, required_environment
+from safety_shutdown.handler import (
+    close_test_window,
+    handler,
+    required_environment,
+)
 
 
 @dataclass
@@ -84,6 +88,35 @@ def test_close_window_attempts_every_action_before_reporting_failure() -> None:
     assert api.calls == [("api-id", True)]
     assert function.calls == [("function-name", 0)]
     assert cloudwatch.calls == [["alarm-name"]]
+
+
+def test_always_on_shutdown_keeps_the_stack_managed_alarm() -> None:
+    api = FakeApiClient()
+    function = FakeLambdaClient()
+    cloudwatch = FakeCloudWatchClient()
+
+    close_test_window(
+        api,
+        function,
+        cloudwatch,
+        api_id="api-id",
+        function_name="function-name",
+        alarm_name="alarm-name",
+        delete_alarm=False,
+    )
+
+    assert api.calls == [("api-id", True)]
+    assert function.calls == [("function-name", 0)]
+    assert cloudwatch.calls == []
+
+
+def test_handler_rejects_invalid_alarm_deletion_setting(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DELETE_TRAFFIC_ALARM", "maybe")
+
+    with pytest.raises(RuntimeError, match="DELETE_TRAFFIC_ALARM"):
+        handler({}, None)
 
 
 def test_required_environment_fails_closed(
