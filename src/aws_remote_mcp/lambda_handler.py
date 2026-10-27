@@ -6,6 +6,7 @@ import importlib
 import json
 import logging
 import os
+import re
 from typing import Any
 
 from mangum import Mangum
@@ -18,6 +19,7 @@ from aws_remote_mcp.adapters.external_integrations import (
     SsmTrelloAdapter,
 )
 from aws_remote_mcp.adapters.protocols import TelegramAdapter, TrelloAdapter
+from aws_remote_mcp.core.audit import build_authorization_denied_record
 from aws_remote_mcp.core.confirmation import (
     ConfirmationProvider,
     DynamoDbConfirmationGuard,
@@ -31,6 +33,8 @@ TELEGRAM_DESTINATIONS = frozenset({"owner"})
 TRELLO_DESTINATIONS = frozenset({("portfolio", "inbox")})
 AUDIT_LOGGER = logging.getLogger("aws_remote_mcp.audit")
 AUDIT_LOGGER.setLevel(logging.INFO)
+ALLOWED_SUBJECT_PATTERN = re.compile(r"^[A-Za-z0-9_|:.@-]{1,128}$")
+MAX_ALLOWED_SUBJECTS = 5
 
 
 def _required_environment(name: str) -> str:
@@ -38,6 +42,39 @@ def _required_environment(name: str) -> str:
     if not value:
         raise RuntimeError(f"Required environment variable is missing: {name}")
     return value
+
+
+def _allowed_subjects() -> frozenset[str]:
+    """Return the explicit owner allowlist; an empty or malformed list fails closed."""
+
+    entries = [
+        entry.strip()
+        for entry in _required_environment("MCP_ALLOWED_SUBJECTS").split(",")
+    ]
+    if len(entries) > MAX_ALLOWED_SUBJECTS or any(
+        ALLOWED_SUBJECT_PATTERN.fullmatch(entry) is None for entry in entries
+    ):
+        raise RuntimeError("MCP_ALLOWED_SUBJECTS must list valid OAuth subjects.")
+    return frozenset(entries)
+
+
+def _forbidden_response() -> dict[str, Any]:
+    """Reject an authenticated but unauthorized caller without a step-up challenge."""
+
+    return {
+        "statusCode": 403,
+        "headers": {"content-type": "application/json"},
+        "body": json.dumps(
+            {
+                "error": "forbidden",
+                "error_description": (
+                    "The authenticated subject is not authorized for this resource."
+                ),
+            },
+            separators=(",", ":"),
+        ),
+        "isBase64Encoded": False,
+    }
 
 
 def _boto_client(service: str, region: str) -> Any:
@@ -163,11 +200,26 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     route_key = (
         request_context.get("routeKey") if isinstance(request_context, dict) else None
     )
+    allowed_subjects = _allowed_subjects()
     caller = (
         _gateway_caller(event, authorization)
         if route_key == "POST /mcp"
         else CallerContext(authorization.issuer_url, "metadata-route")
     )
+    audit_request_id = str(getattr(context, "aws_request_id", "unknown"))
+    if route_key == "POST /mcp" and caller.subject not in allowed_subjects:
+        AUDIT_LOGGER.info(
+            json.dumps(
+                build_authorization_denied_record(
+                    caller=caller,
+                    environment=environment,
+                    request_id=audit_request_id,
+                ),
+                separators=(",", ":"),
+                sort_keys=True,
+            )
+        )
+        return _forbidden_response()
     event = _validated_gateway_event(event, authorization)
     external_setting = os.environ.get("EXTERNAL_INTEGRATIONS_ENABLED", "false")
     if external_setting not in {"true", "false"}:
@@ -228,7 +280,7 @@ def handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         audit_sink=lambda record: AUDIT_LOGGER.info(
             json.dumps(record, separators=(",", ":"), sort_keys=True)
         ),
-        audit_request_id=str(getattr(context, "aws_request_id", "unknown")),
+        audit_request_id=audit_request_id,
     )
     adapter = Mangum(
         app,

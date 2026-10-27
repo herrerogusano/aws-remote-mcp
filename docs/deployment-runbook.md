@@ -98,6 +98,7 @@ $app = aws cloudformation describe-stacks `
 $apiId = ($app.Stacks[0].Outputs | Where-Object OutputKey -eq 'DevApiId').OutputValue
 $audience = "https://$apiId.execute-api.eu-west-1.amazonaws.com/mcp"
 $requiredScope = "$audience/use"
+$ownerSubject = '<owner OAuth sub claim>'
 
 sam deploy `
   --template-file .aws-sam/build-current/template.yaml `
@@ -111,6 +112,7 @@ sam deploy `
     OAuthAuthorizationServer=$authorizationServer `
     McpTokenAudience=$audience `
     McpRequiredScope=$requiredScope `
+    McpAllowedSubjects=$ownerSubject `
     EnableCostExplorer=false `
     "ResourceExplorerViewArn=" `
   --no-confirm-changeset `

@@ -64,6 +64,10 @@ $functionConfig = Invoke-AwsCli @(
 $issuer = $functionConfig.Environment.Variables.OAUTH_ISSUER
 $audience = $functionConfig.Environment.Variables.MCP_RESOURCE_URL
 $requiredScope = $functionConfig.Environment.Variables.MCP_REQUIRED_SCOPE
+# Direct invocation is owner-only through IAM; reuse an allowlisted subject so
+# the Lambda subject check is exercised rather than bypassed.
+$allowedSubjects = "$($functionConfig.Environment.Variables.MCP_ALLOWED_SUBJECTS)"
+$validationSubject = ($allowedSubjects -split ",")[0].Trim()
 $externalIntegrationsEnabled = `
     $functionConfig.Environment.Variables.EXTERNAL_INTEGRATIONS_ENABLED -eq "true"
 $costExplorerEnabled = `
@@ -71,6 +75,7 @@ $costExplorerEnabled = `
 if (
     [string]::IsNullOrWhiteSpace($issuer) -or
     [string]::IsNullOrWhiteSpace($requiredScope) -or
+    [string]::IsNullOrWhiteSpace($validationSubject) -or
     $audience -ne "https://$apiId.execute-api.$Region.amazonaws.com/mcp"
 ) {
     throw "Deployed Lambda authorization configuration is missing or unexpected."
@@ -162,7 +167,7 @@ function New-McpEventJson {
                     claims = [ordered]@{
                         iss       = $issuer
                         aud       = $audience
-                        sub       = "direct-synthetic-validation"
+                        sub       = $validationSubject
                         scope     = $requiredScope
                         token_use = "access"
                     }

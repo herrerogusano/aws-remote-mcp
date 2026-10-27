@@ -28,6 +28,17 @@ and Trello were not called. DEV was closed immediately afterward and the audit
 confirmed the API disabled and Lambda concurrency zero. PROD remains unchanged
 and closed.
 
+## Owner-only authorization increment
+
+Open WorkOS sign-up meant any self-registered user could obtain a token with the
+exact MCP audience and `openid` scope, pass the API Gateway authorizer and the
+Lambda claim checks, and confirm their own external-write previews. D-035 adds a
+required `McpAllowedSubjects` stack parameter checked in Lambda: other
+authenticated subjects receive HTTP 403 and a fixed audit record without the raw
+subject. The change is offline-tested only; no stack has been updated yet. The
+next deployment must supply the owner's WorkOS user ID, and WorkOS sign-up should
+be disabled in the dashboard.
+
 ## Complete project inventory increment
 
 The bounded Resource Explorer search remains available for discovery, but it is

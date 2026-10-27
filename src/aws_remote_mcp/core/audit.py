@@ -33,6 +33,29 @@ def _safe_issue_codes(result_codes: list[str]) -> list[JsonValue]:
     ]
 
 
+def build_authorization_denied_record(
+    *,
+    caller: CallerContext,
+    environment: str,
+    request_id: str,
+) -> Mapping[str, JsonValue]:
+    """Return a fixed-schema denial record without the raw subject or token."""
+
+    if SAFE_CONTEXT_PATTERN.fullmatch(environment) is None:
+        raise ValueError("Audit environment is invalid.")
+    if SAFE_CONTEXT_PATTERN.fullmatch(request_id) is None:
+        raise ValueError("Audit request identifier is invalid.")
+
+    return {
+        "schema_version": 1,
+        "event_type": "mcp_authorization_denied",
+        "environment": environment,
+        "request_id": request_id,
+        "caller_fingerprint": caller.fingerprint,
+        "reason": "subject_not_allowed",
+    }
+
+
 def build_tool_audit_record(
     *,
     tool: str,

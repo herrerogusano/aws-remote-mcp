@@ -45,6 +45,9 @@ def test_endpoint_is_closed_and_jwt_authenticated_by_default() -> None:
     assert "AuthorizationScopes:" in template
     assert template.count("- !Ref McpRequiredScope") == 2
     assert "McpRequiredScope:" in template
+    allowed_subjects = template.split("McpAllowedSubjects:", 1)[1].split("\n  E", 1)[0]
+    assert "Default:" not in allowed_subjects
+    assert "MCP_ALLOWED_SUBJECTS: !Ref McpAllowedSubjects" in template
     assert "OAuthAuthorizationServer:" in template
     assert "OAUTH_ISSUER: !Ref OAuthIssuer" in template
     assert "OAUTH_AUTHORIZATION_SERVER: !Ref OAuthAuthorizationServer" in template
